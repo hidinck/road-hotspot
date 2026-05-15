@@ -1,0 +1,3012 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width,initial-scale=1.0"/>
+<title>AccidentSense — Jalandhar Hotspot Intelligence</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Inter:ital,opsz,wght@0,14..32,100..900;1,14..32,100..900&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"/>
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<script src="https://unpkg.com/leaflet.heat@0.2.0/dist/leaflet-heat.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+
+<style>
+/* ═══════════════════════════════════════════════════
+   ROOT TOKENS
+═══════════════════════════════════════════════════ */
+:root {
+  --bg0: #07070B;
+  --bg1: #0C0C12;
+  --bg2: #111118;
+  --bg3: #16161F;
+  --bg4: #1C1C28;
+
+  --glass: rgba(255,255,255,0.035);
+  --glass2: rgba(255,255,255,0.06);
+  --glass3: rgba(255,255,255,0.10);
+
+  --border: rgba(255,255,255,0.07);
+  --border2: rgba(255,255,255,0.12);
+  --border-purple: rgba(124,58,237,0.35);
+
+  --p400: #A855F7;
+  --p500: #9333EA;
+  --p600: #7C3AED;
+  --p700: #6D28D9;
+  --p-glow: rgba(168,85,247,0.18);
+  --p-subtle: rgba(124,58,237,0.10);
+
+  --blue: #3B82F6;
+  --cyan: #06B6D4;
+  --teal: #14B8A6;
+  --green: #22C55E;
+  --amber: #F59E0B;
+  --orange: #F97316;
+  --red: #EF4444;
+  --pink: #EC4899;
+
+  --t0: #FAFAFA;
+  --t1: #E4E4E7;
+  --t2: #A1A1AA;
+  --t3: #71717A;
+  --t4: #3F3F46;
+  --t5: #27272A;
+
+  --fw-nav: 240px;
+  --fw-nav-col: 60px;
+  --topbar-h: 58px;
+  --radius: 12px;
+  --radius-lg: 16px;
+  --radius-xl: 20px;
+
+  --shadow: 0 4px 24px rgba(0,0,0,0.5);
+  --shadow-lg: 0 12px 48px rgba(0,0,0,0.6);
+  --shadow-purple: 0 0 32px rgba(124,58,237,0.2);
+
+  --font: 'Inter', -apple-system, BlinkMacSystemFont, system-ui, sans-serif;
+  --font-mono: 'SF Mono', 'Fira Code', 'Cascadia Code', ui-monospace, monospace;
+
+  --ease: cubic-bezier(0.25, 0.46, 0.45, 0.94);
+  --ease-spring: cubic-bezier(0.34, 1.56, 0.64, 1);
+}
+
+/* ═══════════════════════════════════════════════════
+   RESET
+═══════════════════════════════════════════════════ */
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+html { font-size: 14px; scroll-behavior: smooth; }
+body {
+  font-family: var(--font);
+  background: var(--bg0);
+  color: var(--t0);
+  min-height: 100vh;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  letter-spacing: -0.01em;
+  overflow-x: hidden;
+}
+
+/* ═══════════════════════════════════════════════════
+   ANIMATED BACKGROUND
+═══════════════════════════════════════════════════ */
+.bg-mesh {
+  position: fixed; inset: 0; z-index: 0; pointer-events: none; overflow: hidden;
+}
+.bg-mesh::before {
+  content: '';
+  position: absolute; width: 600px; height: 600px;
+  background: radial-gradient(circle, rgba(124,58,237,0.12) 0%, transparent 70%);
+  top: -200px; left: 20%; border-radius: 50%;
+  animation: drift 20s ease-in-out infinite alternate;
+}
+.bg-mesh::after {
+  content: '';
+  position: absolute; width: 400px; height: 400px;
+  background: radial-gradient(circle, rgba(6,182,212,0.06) 0%, transparent 70%);
+  bottom: 10%; right: 10%; border-radius: 50%;
+  animation: drift 15s ease-in-out infinite alternate-reverse;
+}
+@keyframes drift {
+  from { transform: translate(0, 0) scale(1); }
+  to   { transform: translate(30px, 40px) scale(1.1); }
+}
+
+/* ═══════════════════════════════════════════════════
+   LAYOUT SHELL
+═══════════════════════════════════════════════════ */
+.shell { display: flex; height: 100vh; position: relative; z-index: 1; }
+
+/* ═══════════════════════════════════════════════════
+   SIDEBAR — liquid chrome Apple-style
+═══════════════════════════════════════════════════ */
+.sidebar {
+  width: var(--fw-nav);
+  background: rgba(8,8,14,0.92);
+  backdrop-filter: saturate(200%) blur(24px);
+  -webkit-backdrop-filter: saturate(200%) blur(24px);
+  border-right: 1px solid var(--border);
+  display: flex; flex-direction: column;
+  position: fixed; top: 0; left: 0; bottom: 0; z-index: 200;
+  transition: width 0.3s var(--ease);
+  overflow: hidden;
+}
+
+/* Iridescent chrome sheen */
+.sidebar::before {
+  content: '';
+  position: absolute; top: 0; left: 0; right: 0; bottom: 0;
+  background: linear-gradient(
+    180deg,
+    rgba(168,85,247,0.04) 0%,
+    transparent 40%,
+    rgba(6,182,212,0.02) 100%
+  );
+  pointer-events: none;
+}
+
+/* Top edge glow */
+.sidebar::after {
+  content: '';
+  position: absolute; top: 0; left: 0; right: 0; height: 1px;
+  background: linear-gradient(90deg, transparent, rgba(168,85,247,0.6), rgba(6,182,212,0.4), transparent);
+}
+
+.sidebar.collapsed { width: var(--fw-nav-col); }
+
+.sb-brand {
+  padding: 18px 16px 14px;
+  border-bottom: 1px solid var(--border);
+  display: flex; align-items: center; gap: 10px;
+  flex-shrink: 0;
+}
+.sb-logo {
+  width: 32px; height: 32px; flex-shrink: 0;
+  background: linear-gradient(135deg, var(--p600), var(--cyan));
+  border-radius: 9px;
+  display: flex; align-items: center; justify-content: center;
+  box-shadow: 0 4px 16px rgba(124,58,237,0.4), inset 0 1px 0 rgba(255,255,255,0.15);
+  font-size: 15px;
+}
+.sb-title { flex: 1; overflow: hidden; }
+.sb-title-main {
+  font-size: 0.88rem; font-weight: 700;
+  letter-spacing: -0.02em; color: var(--t0);
+  white-space: nowrap;
+}
+.sb-title-sub {
+  font-size: 0.62rem; color: var(--t3);
+  margin-top: 1px; white-space: nowrap;
+}
+
+/* Collapse toggle */
+.sb-toggle {
+  width: 24px; height: 24px; flex-shrink: 0;
+  background: var(--glass);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  display: flex; align-items: center; justify-content: center;
+  cursor: pointer; transition: all 0.2s;
+}
+.sb-toggle:hover { background: var(--glass2); border-color: var(--border2); }
+.sb-toggle svg { width: 12px; height: 12px; stroke: var(--t2); transition: transform 0.3s; }
+.collapsed .sb-toggle svg { transform: rotate(180deg); }
+
+/* Sidebar re-open floating button (shown when collapsed) */
+.sb-reopen {
+  position: fixed;
+  top: 50%;
+  left: var(--fw-nav-col);
+  transform: translate(-50%, -50%) translateX(16px);
+  z-index: 201;
+  width: 26px; height: 56px;
+  background: rgba(124,58,237,0.18);
+  border: 1px solid var(--border-purple);
+  border-radius: 0 10px 10px 0;
+  display: none; align-items: center; justify-content: center;
+  cursor: pointer;
+  transition: all 0.2s var(--ease);
+  backdrop-filter: blur(12px);
+}
+.sb-reopen:hover { background: rgba(124,58,237,0.35); border-color: var(--p400); }
+.sb-reopen svg { width: 12px; height: 12px; stroke: var(--p400); }
+.sidebar.collapsed ~ * .sb-reopen,
+body.sb-collapsed .sb-reopen { display: flex; }
+.sb-reopen.visible { display: flex; }
+
+/* Nav */
+.sb-nav { flex: 1; padding: 10px 8px; overflow-y: auto; overflow-x: hidden; }
+.sb-nav::-webkit-scrollbar { width: 0; }
+
+.nav-section-label {
+  font-size: 0.58rem; font-weight: 600; letter-spacing: 0.12em;
+  color: var(--t4); text-transform: uppercase;
+  padding: 12px 8px 5px;
+  white-space: nowrap; overflow: hidden;
+  transition: opacity 0.2s;
+}
+.collapsed .nav-section-label { opacity: 0; }
+
+.nav-item {
+  display: flex; align-items: center; gap: 9px;
+  padding: 8px 10px; border-radius: 9px;
+  cursor: pointer; color: var(--t2);
+  font-size: 0.8rem; font-weight: 500;
+  transition: all 0.15s var(--ease);
+  position: relative; user-select: none;
+  border: 1px solid transparent;
+  white-space: nowrap; overflow: hidden;
+  margin-bottom: 2px;
+  text-decoration: none;
+}
+.nav-item:hover { background: var(--glass2); color: var(--t0); }
+.nav-item.active {
+  background: var(--p-subtle);
+  color: var(--p400);
+  border-color: var(--border-purple);
+}
+.nav-item.active::before {
+  content: '';
+  position: absolute; left: 0; top: 20%; bottom: 20%;
+  width: 3px; border-radius: 0 3px 3px 0;
+  background: linear-gradient(180deg, var(--p400), var(--cyan));
+  box-shadow: 0 0 8px var(--p400);
+}
+.nav-icon {
+  width: 28px; height: 28px; border-radius: 7px;
+  background: var(--glass); display: flex; align-items: center; justify-content: center;
+  flex-shrink: 0; transition: background 0.2s;
+}
+.nav-item.active .nav-icon { background: rgba(168,85,247,0.18); }
+.nav-icon svg { width: 14px; height: 14px; stroke: currentColor; fill: none; stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round; }
+.nav-label { font-size: 0.8rem; }
+.collapsed .nav-label, .collapsed .sb-title { opacity: 0; width: 0; }
+
+.nav-badge {
+  margin-left: auto; font-size: 0.6rem; font-weight: 700;
+  padding: 2px 6px; border-radius: 20px;
+  background: var(--red); color: #fff;
+  flex-shrink: 0;
+  animation: pulse-badge 2s ease infinite;
+}
+@keyframes pulse-badge { 0%,100%{opacity:1} 50%{opacity:0.6} }
+.collapsed .nav-badge { display: none; }
+
+/* Bottom widget */
+.sb-bottom {
+  padding: 12px;
+  border-top: 1px solid var(--border);
+  flex-shrink: 0;
+}
+.sb-city-widget {
+  display: flex; align-items: center; gap: 8px;
+  padding: 8px 10px;
+  background: rgba(6,182,212,0.06);
+  border: 1px solid rgba(6,182,212,0.12);
+  border-radius: var(--radius);
+  overflow: hidden;
+}
+.sb-city-dot {
+  width: 7px; height: 7px; border-radius: 50%;
+  background: var(--green);
+  box-shadow: 0 0 0 3px rgba(34,197,94,0.15);
+  flex-shrink: 0;
+  animation: pulse-dot 2.5s ease-out infinite;
+}
+@keyframes pulse-dot {
+  0%   { box-shadow: 0 0 0 0px rgba(34,197,94,0.4); }
+  70%  { box-shadow: 0 0 0 6px rgba(34,197,94,0); }
+  100% { box-shadow: 0 0 0 0px rgba(34,197,94,0); }
+}
+.sb-city-text {
+  font-size: 0.7rem; font-weight: 500; color: var(--cyan);
+  font-family: var(--font-mono); white-space: nowrap;
+  transition: opacity 0.2s;
+}
+.collapsed .sb-city-text { opacity: 0; width: 0; }
+
+/* ═══════════════════════════════════════════════════
+   MAIN AREA
+═══════════════════════════════════════════════════ */
+.main {
+  margin-left: var(--fw-nav);
+  flex: 1; min-height: 100vh;
+  display: flex; flex-direction: column;
+  transition: margin-left 0.3s var(--ease);
+}
+.main.expanded { margin-left: var(--fw-nav-col); }
+
+/* ═══════════════════════════════════════════════════
+   TOPBAR — liquid chrome
+═══════════════════════════════════════════════════ */
+.topbar {
+  position: sticky; top: 0; z-index: 100;
+  height: var(--topbar-h);
+  background: rgba(7,7,11,0.80);
+  backdrop-filter: saturate(180%) blur(20px);
+  -webkit-backdrop-filter: saturate(180%) blur(20px);
+  border-bottom: 1px solid var(--border);
+  padding: 0 24px;
+  display: flex; align-items: center; gap: 12px;
+}
+
+/* Chrome shimmer line */
+.topbar::after {
+  content: '';
+  position: absolute; bottom: 0; left: 0; right: 0; height: 1px;
+  background: linear-gradient(
+    90deg,
+    transparent 0%,
+    rgba(168,85,247,0.5) 20%,
+    rgba(255,255,255,0.15) 50%,
+    rgba(6,182,212,0.4) 80%,
+    transparent 100%
+  );
+  animation: shimmer 4s ease infinite;
+  background-size: 200% 100%;
+}
+@keyframes shimmer { 0%{ background-position: -100% 0; } 100%{ background-position: 200% 0; } }
+
+.topbar-breadcrumb {
+  display: flex; align-items: center; gap: 6px;
+  font-size: 0.75rem; color: var(--t3);
+}
+.topbar-breadcrumb .sep { opacity: 0.4; }
+.topbar-breadcrumb .current { color: var(--t0); font-weight: 500; }
+
+.topbar-spacer { flex: 1; }
+
+/* Pill controls */
+.topbar-pill {
+  display: flex; align-items: center; gap: 4px;
+  padding: 4px;
+  background: var(--glass);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+}
+.tp-btn {
+  padding: 5px 12px; border-radius: 7px;
+  font-size: 0.72rem; font-weight: 500;
+  cursor: pointer; transition: all 0.15s;
+  color: var(--t2); user-select: none;
+}
+.tp-btn:hover { color: var(--t0); background: var(--glass2); }
+.tp-btn.active {
+  background: rgba(168,85,247,0.18);
+  color: var(--p400); font-weight: 600;
+}
+
+/* City selector */
+.city-select {
+  display: flex; align-items: center; gap: 7px;
+  padding: 6px 12px;
+  background: var(--glass);
+  border: 1px solid var(--border);
+  border-radius: 9px;
+  font-size: 0.75rem; font-weight: 500; color: var(--t1);
+  cursor: pointer; transition: all 0.15s;
+}
+.city-select:hover { border-color: var(--border2); background: var(--glass2); }
+.city-select .loc-dot { width: 6px; height: 6px; border-radius: 50%; background: var(--green); animation: pulse-dot 2s infinite; }
+
+/* Status badge */
+.status-live {
+  display: flex; align-items: center; gap: 5px;
+  padding: 5px 11px;
+  background: rgba(34,197,94,0.08);
+  border: 1px solid rgba(34,197,94,0.2);
+  border-radius: 20px;
+  font-size: 0.68rem; font-weight: 600;
+  color: var(--green);
+  font-family: var(--font-mono);
+}
+
+/* Topbar button */
+.tb-action {
+  display: flex; align-items: center; gap: 5px;
+  padding: 6px 13px; border: none; border-radius: 8px;
+  font-family: var(--font); font-size: 0.75rem; font-weight: 600;
+  cursor: pointer; transition: all 0.15s; letter-spacing: -0.01em;
+}
+.tb-action.primary {
+  background: linear-gradient(135deg, var(--p600), var(--p700));
+  color: #fff;
+  box-shadow: 0 2px 12px rgba(124,58,237,0.35), inset 0 1px 0 rgba(255,255,255,0.12);
+}
+.tb-action.primary:hover {
+  box-shadow: 0 4px 20px rgba(124,58,237,0.5);
+  transform: translateY(-1px);
+}
+.tb-action.ghost {
+  background: var(--glass);
+  border: 1px solid var(--border);
+  color: var(--t2);
+}
+.tb-action.ghost:hover { border-color: var(--border2); color: var(--t0); background: var(--glass2); }
+
+.topbar-timestamp {
+  font-family: var(--font-mono); font-size: 0.65rem;
+  color: var(--t3); padding: 4px 8px;
+  background: var(--glass); border: 1px solid var(--border);
+  border-radius: 6px;
+}
+
+/* ═══════════════════════════════════════════════════
+   PAGE SYSTEM
+═══════════════════════════════════════════════════ */
+.page { display: none; flex: 1; overflow-y: auto; }
+.page.active { display: block; animation: page-in 0.25s var(--ease); }
+@keyframes page-in { from { opacity:0; transform:translateY(6px); } to { opacity:1; transform:none; } }
+.page-inner { padding: 20px 24px 32px; }
+
+/* ═══════════════════════════════════════════════════
+   PAGE HEADER
+═══════════════════════════════════════════════════ */
+.page-header { margin-bottom: 20px; }
+.page-header-row {
+  display: flex; align-items: flex-start; justify-content: space-between; gap: 16px;
+}
+.page-eyebrow {
+  font-size: 0.62rem; font-weight: 600; letter-spacing: 0.1em;
+  text-transform: uppercase; color: var(--p400);
+  margin-bottom: 4px; display: flex; align-items: center; gap: 6px;
+}
+.page-eyebrow::before {
+  content: '';
+  width: 16px; height: 2px;
+  background: linear-gradient(90deg, var(--p400), var(--cyan));
+  border-radius: 1px;
+}
+.page-title {
+  font-size: 1.5rem; font-weight: 800;
+  letter-spacing: -0.04em; color: var(--t0); line-height: 1.1;
+}
+.page-title .grad {
+  background: linear-gradient(135deg, var(--t0) 0%, var(--p400) 50%, var(--cyan) 100%);
+  background-size: 200% 200%;
+  -webkit-background-clip: text; background-clip: text;
+  -webkit-text-fill-color: transparent;
+  animation: grad-anim 5s ease infinite;
+}
+@keyframes grad-anim { 0%,100%{background-position:0% 50%} 50%{background-position:100% 50%} }
+.page-sub { font-size: 0.78rem; color: var(--t3); margin-top: 4px; }
+
+/* ═══════════════════════════════════════════════════
+   CARDS — Glassmorphism
+═══════════════════════════════════════════════════ */
+.card {
+  background: rgba(255,255,255,0.035);
+  backdrop-filter: blur(16px) saturate(120%);
+  -webkit-backdrop-filter: blur(16px) saturate(120%);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  position: relative;
+  overflow: hidden;
+  transition: border-color 0.2s, box-shadow 0.2s, transform 0.2s;
+}
+.card::before {
+  content: '';
+  position: absolute; top: 0; left: 16px; right: 16px; height: 1px;
+  background: linear-gradient(90deg, transparent, rgba(255,255,255,0.08), transparent);
+}
+.card:hover {
+  border-color: var(--border2);
+  box-shadow: 0 8px 32px rgba(0,0,0,0.4);
+}
+.card-p { padding: 18px 20px; }
+.card-hd {
+  display: flex; align-items: center; justify-content: space-between;
+  margin-bottom: 14px;
+}
+.card-title {
+  font-size: 0.82rem; font-weight: 600; color: var(--t0);
+  letter-spacing: -0.01em; display: flex; align-items: center; gap: 7px;
+}
+.card-title .ct-dot {
+  width: 5px; height: 5px; border-radius: 50%;
+  background: var(--p400); box-shadow: 0 0 6px var(--p400);
+}
+.card-tag {
+  font-size: 0.6rem; font-weight: 600; letter-spacing: 0.06em;
+  text-transform: uppercase; color: var(--t4);
+  padding: 3px 8px; border-radius: 5px;
+  background: var(--glass); border: 1px solid var(--border);
+}
+
+/* Accent line variants */
+.card.accent-purple::after {
+  content: ''; position: absolute; top: 0; left: 0; right: 0; height: 2px;
+  background: linear-gradient(90deg, var(--p600), var(--p400), var(--cyan));
+  border-radius: var(--radius-lg) var(--radius-lg) 0 0;
+}
+.card.accent-green::after {
+  content: ''; position: absolute; top: 0; left: 0; right: 0; height: 2px;
+  background: linear-gradient(90deg, var(--green), var(--teal));
+  border-radius: var(--radius-lg) var(--radius-lg) 0 0;
+}
+.card.accent-red::after {
+  content: ''; position: absolute; top: 0; left: 0; right: 0; height: 2px;
+  background: linear-gradient(90deg, var(--red), var(--orange));
+  border-radius: var(--radius-lg) var(--radius-lg) 0 0;
+}
+.card.accent-amber::after {
+  content: ''; position: absolute; top: 0; left: 0; right: 0; height: 2px;
+  background: linear-gradient(90deg, var(--amber), var(--orange));
+  border-radius: var(--radius-lg) var(--radius-lg) 0 0;
+}
+.card.accent-blue::after {
+  content: ''; position: absolute; top: 0; left: 0; right: 0; height: 2px;
+  background: linear-gradient(90deg, var(--blue), var(--cyan));
+  border-radius: var(--radius-lg) var(--radius-lg) 0 0;
+}
+
+/* ═══════════════════════════════════════════════════
+   KPI CARDS
+═══════════════════════════════════════════════════ */
+.kpi-grid { display: grid; grid-template-columns: repeat(4,1fr); gap: 12px; margin-bottom: 18px; }
+
+.kpi-card {
+  background: rgba(255,255,255,0.035);
+  backdrop-filter: blur(20px) saturate(140%);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  padding: 18px 20px;
+  position: relative; overflow: hidden;
+  cursor: pointer;
+  transition: all 0.25s var(--ease);
+}
+.kpi-card::before {
+  content: ''; position: absolute; top: 0; left: 0; right: 0; height: 1px;
+  background: linear-gradient(90deg, transparent, rgba(255,255,255,0.1), transparent);
+}
+.kpi-card::after {
+  content: ''; position: absolute; top: -30%; right: -10%;
+  width: 80px; height: 80px; border-radius: 50%;
+  background: var(--kpi-glow, rgba(168,85,247,0.12));
+  filter: blur(20px);
+  transition: opacity 0.3s;
+}
+.kpi-card:hover { border-color: var(--border2); transform: translateY(-2px); box-shadow: 0 12px 32px rgba(0,0,0,0.4), var(--kpi-shadow, 0 0 20px rgba(168,85,247,0.1)); }
+.kpi-card.active-kpi { border-color: var(--border-purple); box-shadow: var(--shadow-purple); }
+
+.kpi-header { display: flex; align-items: flex-start; justify-content: space-between; margin-bottom: 14px; }
+.kpi-icon {
+  width: 34px; height: 34px; border-radius: 9px;
+  background: var(--kpi-icon-bg, rgba(168,85,247,0.12));
+  border: 1px solid var(--kpi-icon-border, rgba(168,85,247,0.2));
+  display: flex; align-items: center; justify-content: center;
+}
+.kpi-icon svg { width: 15px; height: 15px; stroke: var(--kpi-color, var(--p400)); fill: none; stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round; }
+
+.kpi-trend {
+  font-size: 0.65rem; font-weight: 700;
+  padding: 3px 8px; border-radius: 20px;
+  display: flex; align-items: center; gap: 3px;
+}
+.kpi-trend.up   { background: rgba(34,197,94,0.1); color: var(--green); border: 1px solid rgba(34,197,94,0.2); }
+.kpi-trend.down { background: rgba(239,68,68,0.1); color: var(--red);   border: 1px solid rgba(239,68,68,0.2); }
+.kpi-trend.warn { background: rgba(245,158,11,0.1); color: var(--amber); border: 1px solid rgba(245,158,11,0.2); }
+
+.kpi-value {
+  font-size: 2rem; font-weight: 800; color: var(--t0);
+  letter-spacing: -0.05em; line-height: 1;
+  font-variant-numeric: tabular-nums;
+}
+.kpi-label { font-size: 0.68rem; color: var(--t3); margin-top: 5px; font-weight: 400; }
+.kpi-sublabel { font-size: 0.6rem; color: var(--t4); margin-top: 2px; }
+
+/* Loading skeleton */
+.skeleton {
+  background: linear-gradient(90deg, var(--bg3) 25%, var(--bg4) 50%, var(--bg3) 75%);
+  background-size: 200% 100%;
+  animation: skel-anim 1.4s ease infinite;
+  border-radius: 4px;
+}
+@keyframes skel-anim { 0%{background-position:200% 0} 100%{background-position:-200% 0} }
+
+/* ═══════════════════════════════════════════════════
+   DASHBOARD GRID LAYOUT
+═══════════════════════════════════════════════════ */
+.dash-grid {
+  display: grid;
+  grid-template-columns: 1fr 340px;
+  gap: 14px;
+  margin-bottom: 14px;
+}
+.dash-grid-bottom {
+  display: grid;
+  grid-template-columns: 1fr 1fr 1fr;
+  gap: 14px;
+  margin-bottom: 14px;
+}
+
+/* ═══════════════════════════════════════════════════
+   MAP
+═══════════════════════════════════════════════════ */
+.map-card { height: 480px; }
+.map-container { height: 100%; position: relative; border-radius: calc(var(--radius-lg) - 1px); overflow: hidden; }
+#main-map { width: 100%; height: 100%; }
+
+/* Map overlays */
+.map-controls {
+  position: absolute; top: 12px; left: 12px; z-index: 1000;
+  display: flex; flex-direction: column; gap: 5px;
+}
+.map-ctrl-group {
+  background: rgba(7,7,11,0.92);
+  backdrop-filter: blur(16px);
+  border: 1px solid var(--border2);
+  border-radius: 11px;
+  padding: 6px;
+  display: flex; flex-direction: column; gap: 3px;
+}
+.map-ctrl-btn {
+  display: flex; align-items: center; gap: 7px;
+  padding: 6px 10px; border-radius: 7px;
+  font-size: 0.7rem; font-weight: 500; cursor: pointer;
+  color: var(--t2); transition: all 0.15s;
+  font-family: var(--font); user-select: none;
+  white-space: nowrap; border: 1px solid transparent;
+}
+.map-ctrl-btn:hover { color: var(--t0); background: var(--glass2); }
+.map-ctrl-btn.active {
+  background: rgba(168,85,247,0.15);
+  color: var(--p400); border-color: var(--border-purple);
+}
+.map-ctrl-dot { width: 7px; height: 7px; border-radius: 50%; background: currentColor; flex-shrink: 0; }
+
+.map-hud {
+  position: absolute; top: 12px; right: 12px; z-index: 1000;
+  background: rgba(7,7,11,0.92);
+  backdrop-filter: blur(16px);
+  border: 1px solid var(--border2);
+  border-radius: 11px; padding: 12px 14px; min-width: 160px;
+}
+.map-hud-title {
+  font-size: 0.58rem; font-weight: 700; letter-spacing: 0.1em;
+  text-transform: uppercase; color: var(--t4);
+  margin-bottom: 9px; padding-bottom: 7px;
+  border-bottom: 1px solid var(--border);
+}
+.hud-row {
+  display: flex; justify-content: space-between; align-items: center;
+  margin-bottom: 5px; font-size: 0.7rem;
+}
+.hud-row:last-child { margin-bottom: 0; }
+.hud-label { color: var(--t3); }
+.hud-val { color: var(--t0); font-weight: 600; font-family: var(--font-mono); font-size: 0.68rem; }
+
+.map-legend {
+  position: absolute; bottom: 14px; right: 12px; z-index: 1000;
+  background: rgba(7,7,11,0.92);
+  backdrop-filter: blur(16px);
+  border: 1px solid var(--border2);
+  border-radius: 11px; padding: 10px 12px;
+}
+.legend-title {
+  font-size: 0.58rem; font-weight: 700; letter-spacing: 0.1em;
+  text-transform: uppercase; color: var(--t4); margin-bottom: 8px;
+}
+.legend-row {
+  display: flex; align-items: center; gap: 7px;
+  font-size: 0.7rem; color: var(--t2); margin-bottom: 5px;
+}
+.legend-row:last-child { margin-bottom: 0; }
+.legend-swatch { width: 10px; height: 10px; border-radius: 50%; flex-shrink: 0; }
+.legend-swatch.gradient {
+  background: linear-gradient(135deg, #3B82F6, #A855F7, #EF4444);
+  border-radius: 3px;
+}
+
+/* Heatmap controls panel */
+.heatmap-controls {
+  background: rgba(7,7,11,0.92);
+  backdrop-filter: blur(16px);
+  border: 1px solid var(--border2);
+  border-radius: 11px;
+  padding: 10px 12px;
+  min-width: 170px;
+}
+.hm-ctrl-title {
+  font-size: 0.58rem; font-weight: 700; letter-spacing: 0.1em;
+  text-transform: uppercase; color: var(--t4);
+  margin-bottom: 8px; padding-bottom: 6px;
+  border-bottom: 1px solid var(--border);
+}
+.hm-ctrl-row {
+  display: flex; align-items: center; justify-content: space-between;
+  gap: 8px; margin-bottom: 7px; font-size: 0.68rem; color: var(--t3);
+}
+.hm-ctrl-row:last-child { margin-bottom: 0; }
+.hm-slider {
+  -webkit-appearance: none; appearance: none;
+  width: 90px; height: 3px;
+  background: linear-gradient(90deg, var(--p600), var(--cyan));
+  border-radius: 2px; outline: none; cursor: pointer;
+}
+.hm-slider::-webkit-slider-thumb {
+  -webkit-appearance: none; appearance: none;
+  width: 12px; height: 12px; border-radius: 50%;
+  background: var(--p400); border: 2px solid #fff;
+  cursor: pointer; box-shadow: 0 0 6px rgba(168,85,247,0.5);
+}
+.hm-val {
+  font-family: var(--font-mono); font-size: 0.62rem;
+  color: var(--p400); min-width: 24px; text-align: right;
+}
+.hm-theme-row {
+  display: flex; gap: 4px; flex-wrap: wrap; margin-top: 2px;
+}
+.hm-theme-btn {
+  padding: 2px 7px; border-radius: 4px; font-size: 0.6rem; font-weight: 600;
+  cursor: pointer; border: 1px solid var(--border); color: var(--t3);
+  transition: all 0.15s; background: var(--glass);
+}
+.hm-theme-btn.active, .hm-theme-btn:hover { color: var(--t0); background: var(--glass2); border-color: var(--border2); }
+.hm-theme-btn.active { color: var(--p400); border-color: var(--border-purple); background: var(--p-subtle); }
+.leaflet-popup-content-wrapper {
+  background: rgba(7,7,11,0.97) !important;
+  border: 1px solid var(--border2) !important;
+  border-radius: var(--radius-lg) !important;
+  box-shadow: 0 16px 48px rgba(0,0,0,0.6), 0 0 0 1px rgba(168,85,247,0.12) !important;
+  color: var(--t0) !important;
+  font-family: var(--font) !important;
+  backdrop-filter: blur(20px) !important;
+}
+.leaflet-popup-tip-container { display: none; }
+.leaflet-popup-content { margin: 0 !important; padding: 0 !important; }
+.leaflet-container { background: #05050A; }
+
+/* ─── Dark-mode cluster hover card ─── */
+.cluster-rich-tooltip.leaflet-tooltip {
+  background: rgba(7,7,11,0.97) !important;
+  border: 1px solid rgba(255,255,255,0.12) !important;
+  border-radius: 16px !important;
+  box-shadow: 0 20px 60px rgba(0,0,0,0.75), 0 0 0 1px rgba(168,85,247,0.18) !important;
+  padding: 0 !important;
+  backdrop-filter: blur(24px) !important;
+  -webkit-backdrop-filter: blur(24px) !important;
+  color: var(--t0) !important;
+  font-family: var(--font) !important;
+  max-width: 280px !important;
+  pointer-events: none;
+}
+.cluster-rich-tooltip.leaflet-tooltip::before { display: none !important; }
+
+/* Hover card inner layout */
+.hc-wrap {
+  padding: 14px 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 0;
+}
+.hc-header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 10px;
+  padding-bottom: 10px;
+  border-bottom: 1px solid rgba(255,255,255,0.07);
+}
+.hc-dot {
+  width: 9px;
+  height: 9px;
+  border-radius: 50%;
+  flex-shrink: 0;
+  box-shadow: 0 0 8px currentColor;
+}
+.hc-cluster-id {
+  font-size: 0.58rem;
+  font-weight: 700;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--t3);
+}
+.hc-risk-badge {
+  margin-left: auto;
+  font-size: 0.55rem;
+  font-weight: 800;
+  padding: 2px 8px;
+  border-radius: 20px;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  flex-shrink: 0;
+}
+.hc-zone-name {
+  font-size: 0.92rem;
+  font-weight: 700;
+  color: var(--t0);
+  letter-spacing: -0.02em;
+  margin-bottom: 10px;
+  line-height: 1.2;
+  text-transform: capitalize;
+}
+.hc-stats {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 6px;
+  margin-bottom: 10px;
+}
+.hc-stat {
+  background: rgba(255,255,255,0.05);
+  border: 1px solid rgba(255,255,255,0.06);
+  border-radius: 8px;
+  padding: 8px 10px;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+.hc-stat-val {
+  font-size: 1.1rem;
+  font-weight: 800;
+  color: var(--t0);
+  font-variant-numeric: tabular-nums;
+  font-family: var(--font-mono);
+  line-height: 1;
+}
+.hc-stat-icon {
+  font-size: 0.7rem;
+  margin-bottom: 1px;
+}
+.hc-stat-lbl {
+  font-size: 0.56rem;
+  color: var(--t4);
+  font-weight: 500;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+.hc-risk-bar-wrap {
+  margin-bottom: 4px;
+}
+.hc-risk-bar-labels {
+  display: flex;
+  justify-content: space-between;
+  font-size: 0.52rem;
+  color: var(--t5);
+  margin-bottom: 4px;
+  font-weight: 500;
+}
+.hc-risk-track {
+  height: 5px;
+  border-radius: 3px;
+  background: rgba(255,255,255,0.07);
+  overflow: hidden;
+  margin-bottom: 8px;
+}
+.hc-risk-fill {
+  height: 100%;
+  border-radius: 3px;
+}
+.hc-footer {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding-top: 8px;
+  border-top: 1px solid rgba(255,255,255,0.06);
+}
+.hc-coords {
+  font-size: 0.58rem;
+  color: var(--t4);
+  font-family: var(--font-mono);
+  line-height: 1.4;
+}
+.hc-hint {
+  font-size: 0.56rem;
+  color: var(--t5);
+  font-style: italic;
+}
+
+/* Heatmap controls panel on live map page */
+.hm-panel-card {
+  background: rgba(7,7,11,0.93);
+  backdrop-filter: blur(16px);
+  border: 1px solid var(--border2);
+  border-radius: var(--radius-lg);
+  padding: 14px 16px;
+  display: flex;
+  align-items: center;
+  gap: 20px;
+  flex-wrap: wrap;
+  margin-bottom: 12px;
+}
+.hm-panel-title {
+  font-size: 0.62rem;
+  font-weight: 700;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--t3);
+  white-space: nowrap;
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+.hm-panel-group {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+.hm-panel-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 0.7rem;
+  color: var(--t3);
+}
+.hm-panel-divider {
+  width: 1px;
+  height: 28px;
+  background: var(--border);
+  flex-shrink: 0;
+}
+.hm-panel-theme-row {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  flex-shrink: 0;
+}
+.leaflet-control-zoom a {
+  background: rgba(7,7,11,0.92) !important;
+  border-color: var(--border2) !important;
+  color: var(--t2) !important;
+}
+.leaflet-control-zoom a:hover { background: var(--glass2) !important; color: var(--t0) !important; }
+
+/* Custom popup card */
+.popup-card { padding: 14px 16px; min-width: 200px; font-family: var(--font); }
+.popup-cluster-id {
+  font-size: 0.6rem; font-weight: 700; letter-spacing: 0.08em;
+  text-transform: uppercase; color: var(--t3);
+  margin-bottom: 4px; display: flex; align-items: center; gap: 5px;
+}
+.popup-name {
+  font-size: 0.9rem; font-weight: 700; color: var(--t0);
+  letter-spacing: -0.02em; margin-bottom: 10px;
+}
+.popup-grid {
+  display: grid; grid-template-columns: 1fr 1fr; gap: 8px;
+  margin-bottom: 10px;
+}
+.popup-stat { background: var(--glass2); border-radius: 7px; padding: 8px 10px; }
+.popup-stat-val { font-size: 1rem; font-weight: 800; color: var(--t0); font-family: var(--font-mono); }
+.popup-stat-lbl { font-size: 0.6rem; color: var(--t3); margin-top: 1px; }
+.popup-risk-bar { height: 4px; border-radius: 2px; background: var(--border); margin-bottom: 8px; overflow: hidden; }
+.popup-risk-fill { height: 100%; border-radius: 2px; transition: width 0.8s var(--ease); }
+.popup-risk-labels { display: flex; justify-content: space-between; font-size: 0.58rem; color: var(--t4); margin-bottom: 10px; }
+.popup-btn {
+  width: 100%; padding: 7px; border-radius: 7px; border: none;
+  background: var(--p-subtle); border: 1px solid var(--border-purple);
+  color: var(--p400); font-size: 0.72rem; font-weight: 600;
+  cursor: pointer; font-family: var(--font);
+  transition: all 0.15s;
+}
+.popup-btn:hover { background: rgba(124,58,237,0.2); }
+
+/* Animated vehicle marker */
+.vehicle-marker {
+  width: 18px; height: 18px; border-radius: 50%;
+  border: 2px solid currentColor;
+  background: rgba(0,0,0,0.5);
+  display: flex; align-items: center; justify-content: center;
+  font-size: 8px;
+  animation: vehicle-pulse 2s ease-out infinite;
+}
+@keyframes vehicle-pulse {
+  0%   { box-shadow: 0 0 0 0px rgba(34,197,94,0.4); }
+  70%  { box-shadow: 0 0 0 8px rgba(34,197,94,0); }
+  100% { box-shadow: 0 0 0 0px rgba(34,197,94,0); }
+}
+
+/* ═══════════════════════════════════════════════════
+   AI INSIGHTS PANEL
+═══════════════════════════════════════════════════ */
+.insights-panel { height: 480px; display: flex; flex-direction: column; }
+.insights-body { flex: 1; overflow-y: auto; padding: 0 20px 16px; }
+.insights-body::-webkit-scrollbar { width: 3px; }
+.insights-body::-webkit-scrollbar-thumb { background: var(--t5); border-radius: 2px; }
+
+.insight-item {
+  padding: 12px 14px; border-radius: var(--radius);
+  border: 1px solid var(--border);
+  background: var(--glass);
+  margin-bottom: 8px;
+  cursor: pointer;
+  transition: all 0.2s var(--ease);
+  position: relative; overflow: hidden;
+  animation: insight-appear 0.4s var(--ease) both;
+}
+.insight-item:nth-child(1) { animation-delay: 0.05s; }
+.insight-item:nth-child(2) { animation-delay: 0.10s; }
+.insight-item:nth-child(3) { animation-delay: 0.15s; }
+.insight-item:nth-child(4) { animation-delay: 0.20s; }
+.insight-item:nth-child(5) { animation-delay: 0.25s; }
+@keyframes insight-appear { from{opacity:0;transform:translateX(8px)} to{opacity:1;transform:none} }
+
+.insight-item::before {
+  content: ''; position: absolute; left: 0; top: 0; bottom: 0;
+  width: 3px; background: var(--ins-color, var(--p400));
+  border-radius: var(--radius) 0 0 var(--radius);
+}
+.insight-item:hover { border-color: var(--border2); background: var(--glass2); transform: translateX(2px); }
+
+.insight-header { display: flex; align-items: center; gap: 8px; margin-bottom: 6px; }
+.insight-type {
+  font-size: 0.58rem; font-weight: 700; letter-spacing: 0.08em;
+  text-transform: uppercase; padding: 2px 7px; border-radius: 20px;
+  background: var(--ins-bg, rgba(168,85,247,0.12));
+  color: var(--ins-color, var(--p400));
+  border: 1px solid var(--ins-border, rgba(168,85,247,0.2));
+}
+.insight-time { font-size: 0.6rem; color: var(--t4); font-family: var(--font-mono); }
+.insight-text { font-size: 0.75rem; color: var(--t2); line-height: 1.6; }
+.insight-text strong { color: var(--t0); font-weight: 600; }
+
+/* AI typing indicator */
+.ai-thinking {
+  display: flex; align-items: center; gap: 8px;
+  padding: 12px 14px; font-size: 0.72rem; color: var(--t3);
+}
+.ai-dots { display: flex; gap: 3px; }
+.ai-dots span {
+  width: 5px; height: 5px; border-radius: 50%;
+  background: var(--p400); animation: ai-dot 1.2s ease infinite;
+}
+.ai-dots span:nth-child(2) { animation-delay: 0.2s; }
+.ai-dots span:nth-child(3) { animation-delay: 0.4s; }
+@keyframes ai-dot { 0%,80%,100%{transform:scale(0.6);opacity:0.4} 40%{transform:scale(1);opacity:1} }
+
+/* ═══════════════════════════════════════════════════
+   ALERTS PANEL
+═══════════════════════════════════════════════════ */
+.alerts-feed { display: flex; flex-direction: column; gap: 5px; max-height: 280px; overflow-y: auto; padding: 0 20px 16px; }
+.alerts-feed::-webkit-scrollbar { width: 3px; }
+.alerts-feed::-webkit-scrollbar-thumb { background: var(--t5); border-radius: 2px; }
+
+.alert-item {
+  display: flex; align-items: flex-start; gap: 9px;
+  padding: 10px 12px; border-radius: var(--radius);
+  background: var(--glass); border: 1px solid var(--border);
+  cursor: pointer; transition: all 0.15s;
+  position: relative; overflow: hidden;
+  animation: alert-in 0.2s var(--ease);
+}
+@keyframes alert-in { from{opacity:0;transform:translateY(-5px)} to{opacity:1;transform:none} }
+.alert-item:hover { border-color: var(--border2); background: var(--glass2); }
+.alert-item::before {
+  content: ''; position: absolute; left: 0; top: 0; bottom: 0; width: 3px;
+  background: var(--alert-color, var(--p400));
+  border-radius: var(--radius) 0 0 var(--radius);
+}
+
+.alert-icon {
+  width: 28px; height: 28px; border-radius: 7px; flex-shrink: 0;
+  display: flex; align-items: center; justify-content: center; font-size: 0.85rem;
+  background: var(--alert-bg, rgba(168,85,247,0.12));
+  border: 1px solid var(--alert-border, rgba(168,85,247,0.2));
+}
+.alert-body { flex: 1; min-width: 0; }
+.alert-title { font-size: 0.73rem; font-weight: 600; color: var(--t0); line-height: 1.3; }
+.alert-meta { font-size: 0.62rem; color: var(--t3); margin-top: 2px; font-family: var(--font-mono); }
+.alert-sev {
+  font-size: 0.58rem; font-weight: 700; padding: 2px 7px;
+  border-radius: 20px; flex-shrink: 0; text-transform: uppercase; letter-spacing: 0.04em;
+  margin-top: 1px;
+}
+
+/* ═══════════════════════════════════════════════════
+   CHARTS
+═══════════════════════════════════════════════════ */
+.chart-box { position: relative; }
+
+/* ═══════════════════════════════════════════════════
+   DATA TABLE
+═══════════════════════════════════════════════════ */
+.table-wrap { overflow-x: auto; }
+.data-table { width: 100%; border-collapse: collapse; font-size: 0.75rem; }
+.data-table th {
+  text-align: left; padding: 8px 12px;
+  font-size: 0.6rem; font-weight: 700; letter-spacing: 0.08em;
+  text-transform: uppercase; color: var(--t4);
+  border-bottom: 1px solid var(--border);
+}
+.data-table td { padding: 10px 12px; border-bottom: 1px solid rgba(255,255,255,0.025); vertical-align: middle; }
+.data-table tr:last-child td { border-bottom: none; }
+.data-table tr { cursor: pointer; transition: background 0.12s; }
+.data-table tr:hover td { background: var(--glass); }
+
+.risk-badge {
+  font-size: 0.58rem; font-weight: 700; padding: 3px 8px;
+  border-radius: 20px; text-transform: uppercase; letter-spacing: 0.04em;
+  display: inline-flex; align-items: center; gap: 4px;
+}
+.risk-badge::before { content: ''; width: 5px; height: 5px; border-radius: 50%; background: currentColor; }
+.risk-badge.low      { background: rgba(34,197,94,0.1);  color: #22C55E; border: 1px solid rgba(34,197,94,0.2); }
+.risk-badge.medium   { background: rgba(245,158,11,0.1); color: #F59E0B; border: 1px solid rgba(245,158,11,0.2); }
+.risk-badge.high     { background: rgba(239,68,68,0.1);  color: #EF4444; border: 1px solid rgba(239,68,68,0.2); }
+.risk-badge.critical { background: rgba(168,85,247,0.1); color: #A855F7; border: 1px solid rgba(168,85,247,0.2); }
+
+.score-bar-wrap { display: flex; align-items: center; gap: 8px; }
+.score-track { flex: 1; height: 4px; background: rgba(255,255,255,0.06); border-radius: 2px; overflow: hidden; min-width: 50px; }
+.score-fill { height: 100%; border-radius: 2px; transition: width 0.7s var(--ease); }
+.score-num { font-family: var(--font-mono); font-size: 0.65rem; color: var(--t3); min-width: 26px; text-align: right; }
+
+/* ═══════════════════════════════════════════════════
+   VEHICLE STATUS GRID
+═══════════════════════════════════════════════════ */
+.vehicle-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 7px; max-height: 240px; overflow-y: auto; }
+.vehicle-tile {
+  padding: 9px 10px; border-radius: var(--radius);
+  background: var(--glass); border: 1px solid var(--border);
+  cursor: pointer; transition: all 0.14s;
+}
+.vehicle-tile:hover { background: var(--glass2); border-color: var(--border2); }
+.vt-id { font-family: var(--font-mono); font-size: 0.65rem; font-weight: 600; color: var(--t0); }
+.vt-speed { font-size: 0.6rem; color: var(--t3); margin: 2px 0; }
+.vt-status { font-size: 0.56rem; font-weight: 700; padding: 1px 6px; border-radius: 4px; text-transform: uppercase; letter-spacing: 0.04em; display: inline-block; }
+.vt-status.normal   { background: rgba(34,197,94,0.1);  color: #22C55E; }
+.vt-status.medium   { background: rgba(245,158,11,0.1); color: #F59E0B; }
+.vt-status.high     { background: rgba(239,68,68,0.1);  color: #EF4444; }
+.vt-status.critical { background: rgba(168,85,247,0.1); color: #A855F7; }
+
+/* ═══════════════════════════════════════════════════
+   MODEL EVALUATION
+═══════════════════════════════════════════════════ */
+.eval-strip { display: grid; grid-template-columns: repeat(4,1fr); gap: 12px; margin-bottom: 16px; }
+.eval-card {
+  background: var(--glass); border: 1px solid var(--border);
+  border-radius: var(--radius-lg); padding: 16px 18px;
+  text-align: center; position: relative; overflow: hidden;
+  transition: all 0.2s;
+}
+.eval-card:hover { border-color: var(--border2); transform: translateY(-2px); }
+.eval-card::after { content: ''; position: absolute; top: 0; left: 20%; right: 20%; height: 1px; background: linear-gradient(90deg, transparent, var(--ec, rgba(168,85,247,0.5)), transparent); }
+.eval-val { font-size: 1.8rem; font-weight: 800; color: var(--ec, var(--p400)); letter-spacing: -0.05em; font-variant-numeric: tabular-nums; }
+.eval-lbl { font-size: 0.68rem; color: var(--t3); margin-top: 3px; }
+.eval-hint { font-size: 0.6rem; color: var(--t4); margin-top: 2px; }
+
+/* ═══════════════════════════════════════════════════
+   ABOUT PAGE
+═══════════════════════════════════════════════════ */
+.about-hero {
+  background: linear-gradient(145deg, rgba(124,58,237,0.08), rgba(6,182,212,0.04));
+  border: 1px solid rgba(124,58,237,0.2); border-radius: var(--radius-xl);
+  padding: 36px; margin-bottom: 18px; position: relative; overflow: hidden;
+}
+.about-hero::before { content: ''; position: absolute; top:-80px; right:-40px; width:260px; height:260px; background:radial-gradient(circle,rgba(168,85,247,0.15),transparent 70%); border-radius:50%; }
+.about-badge { display:inline-flex; align-items:center; gap:5px; padding:4px 11px; border-radius:20px; background:rgba(168,85,247,0.1); border:1px solid rgba(168,85,247,0.25); color:var(--p400); font-size:0.68rem; font-weight:600; margin-bottom:12px; }
+.about-title { font-size:2rem; font-weight:900; letter-spacing:-0.05em; line-height:1.1; margin-bottom:10px; position:relative;z-index:1; }
+.about-desc { font-size:0.82rem; color:var(--t2); line-height:1.7; max-width:600px; position:relative;z-index:1; }
+
+.steps-grid { display:grid; grid-template-columns:repeat(3,1fr); gap:12px; margin-bottom:16px; }
+.step-card { background:var(--glass); border:1px solid var(--border); border-radius:var(--radius-lg); padding:18px; position:relative; overflow:hidden; transition:all 0.2s; }
+.step-card:hover { border-color:var(--border2); transform:translateY(-2px); box-shadow:0 8px 24px rgba(0,0,0,0.3); }
+.step-num { font-size:2.2rem; font-weight:900; color:rgba(168,85,247,0.12); position:absolute; top:6px; right:12px; letter-spacing:-0.06em; line-height:1; }
+.step-icon { width:36px; height:36px; border-radius:10px; background:rgba(124,58,237,0.12); border:1px solid rgba(124,58,237,0.2); display:flex; align-items:center; justify-content:center; font-size:1.1rem; margin-bottom:10px; }
+.step-title { font-size:0.82rem; font-weight:700; color:var(--t0); margin-bottom:5px; letter-spacing:-0.01em; }
+.step-desc { font-size:0.7rem; color:var(--t2); line-height:1.65; }
+
+.tech-grid { display:grid; grid-template-columns:repeat(4,1fr); gap:9px; }
+.tech-card { background:var(--glass); border:1px solid var(--border); border-radius:var(--radius); padding:12px; text-align:center; transition:all 0.15s; }
+.tech-card:hover { border-color:var(--border2); transform:translateY(-1px); }
+.tech-icon { font-size:1.3rem; margin-bottom:5px; }
+.tech-name { font-size:0.72rem; font-weight:600; color:var(--t0); }
+.tech-role { font-size:0.6rem; color:var(--t3); margin-top:1px; }
+
+/* Datasets */
+.ds-grid { display:grid; grid-template-columns:1fr 1fr; gap:12px; }
+.ds-card { background:var(--glass); border:1px solid var(--border); border-radius:var(--radius-lg); padding:16px 18px; transition:all 0.2s; position:relative; }
+.ds-card:hover { border-color:var(--border2); transform:translateY(-2px); box-shadow:0 8px 24px rgba(0,0,0,0.3); }
+.ds-card::before { content:''; position:absolute; top:0; left:0; right:0; height:2px; background:var(--ds-acc,linear-gradient(90deg,var(--p600),var(--cyan))); border-radius:var(--radius-lg) var(--radius-lg) 0 0; }
+.ds-hdr { display:flex; align-items:flex-start; gap:10px; margin-bottom:9px; }
+.ds-ico { width:34px; height:34px; border-radius:9px; flex-shrink:0; display:flex; align-items:center; justify-content:center; font-size:1rem; background:var(--glass2); border:1px solid var(--border); }
+.ds-name { font-size:0.82rem; font-weight:700; color:var(--t0); letter-spacing:-0.01em; }
+.ds-src { font-size:0.62rem; color:var(--t3); font-family:var(--font-mono); margin-top:1px; }
+.ds-desc { font-size:0.71rem; color:var(--t2); line-height:1.65; }
+.ds-tags { display:flex; flex-wrap:wrap; gap:4px; margin-top:9px; }
+.ds-tag { font-size:0.58rem; padding:2px 7px; border-radius:20px; background:var(--glass2); border:1px solid var(--border); color:var(--t3); font-family:var(--font-mono); }
+.ds-link { display:inline-flex; align-items:center; gap:4px; margin-top:9px; font-size:0.68rem; font-weight:600; color:var(--p400); text-decoration:none; transition:color 0.15s; }
+.ds-link:hover { color:#C084FC; }
+
+/* ═══════════════════════════════════════════════════
+   ANALYTICS 2-COL
+═══════════════════════════════════════════════════ */
+.a2 { display:grid; grid-template-columns:1fr 1fr; gap:13px; }
+.a2+.a2 { margin-top:13px; }
+
+/* ═══════════════════════════════════════════════════
+   COMPARISON MODE BANNER
+═══════════════════════════════════════════════════ */
+.compare-banner {
+  display:none; align-items:center; gap:12px;
+  padding:10px 16px; background:rgba(245,158,11,0.06);
+  border:1px solid rgba(245,158,11,0.18); border-radius:var(--radius);
+  margin-bottom:14px; font-size:0.75rem; color:var(--t2);
+}
+.compare-banner.visible { display:flex; animation:fadeIn 0.3s ease; }
+@keyframes fadeIn { from{opacity:0;transform:translateY(-4px)} to{opacity:1;transform:none} }
+.compare-banner strong { color:var(--amber); }
+
+/* ═══════════════════════════════════════════════════
+   SPINNER & EMPTY
+═══════════════════════════════════════════════════ */
+.spinner { display:inline-block; width:13px; height:13px; border:2px solid rgba(255,255,255,0.08); border-top-color:var(--p400); border-radius:50%; animation:spin 0.7s linear infinite; }
+@keyframes spin { to{transform:rotate(360deg)} }
+.empty-state { text-align:center; padding:32px; color:var(--t4); }
+.empty-state .ei { font-size:1.8rem; opacity:0.25; margin-bottom:8px; }
+.empty-state p { font-size:0.75rem; }
+
+/* ═══════════════════════════════════════════════════
+   SCROLLBAR
+═══════════════════════════════════════════════════ */
+::-webkit-scrollbar { width: 4px; height: 4px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb { background: var(--t5); border-radius: 3px; }
+
+/* ═══════════════════════════════════════════════════
+   RESPONSIVE
+═══════════════════════════════════════════════════ */
+@media (max-width: 1280px) {
+  .kpi-grid { grid-template-columns: repeat(2, 1fr); }
+  .dash-grid { grid-template-columns: 1fr; }
+  .dash-grid-bottom { grid-template-columns: 1fr 1fr; }
+  .eval-strip { grid-template-columns: repeat(2, 1fr); }
+}
+@media (max-width: 900px) {
+  .sidebar { width: var(--fw-nav-col) !important; }
+  .main { margin-left: var(--fw-nav-col) !important; }
+  .dash-grid-bottom { grid-template-columns: 1fr; }
+  .a2, .steps-grid, .tech-grid, .ds-grid { grid-template-columns: 1fr; }
+  .vehicle-grid { grid-template-columns: repeat(3,1fr); }
+}
+@media (max-width: 640px) {
+  .kpi-grid { grid-template-columns: 1fr 1fr; }
+  .page-inner { padding: 14px 14px 24px; }
+  .vehicle-grid { grid-template-columns: repeat(2,1fr); }
+}
+
+/* fade-up stagger */
+.fu { opacity:0; animation:fuAnim 0.4s var(--ease) forwards; }
+.fu:nth-child(1){animation-delay:0.04s} .fu:nth-child(2){animation-delay:0.08s}
+.fu:nth-child(3){animation-delay:0.12s} .fu:nth-child(4){animation-delay:0.16s}
+.fu:nth-child(5){animation-delay:0.20s} .fu:nth-child(6){animation-delay:0.24s}
+@keyframes fuAnim { to{opacity:1;transform:none} from{opacity:0;transform:translateY(10px)} }
+
+/* divider */
+.div { border: none; border-top: 1px solid var(--border); margin: 14px 0; }
+
+/* code */
+code { font-family:var(--font-mono); font-size:0.68rem; background:var(--glass2); padding:1px 5px; border-radius:3px; }
+</style>
+</head>
+<body>
+
+<div class="bg-mesh"></div>
+
+<!-- ══════════════ SIDEBAR ══════════════ -->
+<aside class="sidebar" id="sidebar">
+  <div class="sb-brand">
+    <div class="sb-logo">🛣️</div>
+    <div class="sb-title">
+      <div class="sb-title-main">AccidentSense</div>
+      <div class="sb-title-sub">Hotspot Intelligence</div>
+    </div>
+    <div class="sb-toggle" onclick="toggleSidebar()" title="Collapse">
+      <svg viewBox="0 0 24 24"><polyline points="15 18 9 12 15 6"/></svg>
+    </div>
+  </div>
+
+  <nav class="sb-nav">
+    <div class="nav-section-label">Overview</div>
+
+    <div class="nav-item active" onclick="showPage('dashboard',this)" title="Dashboard">
+      <div class="nav-icon">
+        <svg viewBox="0 0 24 24"><rect x="3" y="3" width="7" height="7" rx="1.5"/><rect x="14" y="3" width="7" height="7" rx="1.5"/><rect x="3" y="14" width="7" height="7" rx="1.5"/><rect x="14" y="14" width="7" height="7" rx="1.5"/></svg>
+      </div>
+      <span class="nav-label">Dashboard</span>
+    </div>
+
+    <div class="nav-item" onclick="showPage('map',this)" title="Live Map">
+      <div class="nav-icon">
+        <svg viewBox="0 0 24 24"><polygon points="1 6 1 22 8 18 16 22 23 18 23 2 16 6 8 2 1 6"/><line x1="8" y1="2" x2="8" y2="18"/><line x1="16" y1="6" x2="16" y2="22"/></svg>
+      </div>
+      <span class="nav-label">Live Map</span>
+    </div>
+
+    <div class="nav-section-label">Analysis</div>
+
+    <div class="nav-item" onclick="showPage('analytics',this)" title="Analytics">
+      <div class="nav-icon">
+        <svg viewBox="0 0 24 24"><line x1="18" y1="20" x2="18" y2="10"/><line x1="12" y1="20" x2="12" y2="4"/><line x1="6" y1="20" x2="6" y2="14"/></svg>
+      </div>
+      <span class="nav-label">Analytics</span>
+    </div>
+
+    <div class="nav-item" onclick="showPage('evaluation',this)" title="Model Evaluation">
+      <div class="nav-icon">
+        <svg viewBox="0 0 24 24"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg>
+      </div>
+      <span class="nav-label">Model Evaluation</span>
+    </div>
+
+    <div class="nav-section-label">Monitoring</div>
+
+    <div class="nav-item" onclick="showPage('live',this)" title="Live Tracking">
+      <div class="nav-icon">
+        <svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="2"/><path d="M16.24 7.76a6 6 0 010 8.49"/><path d="M7.76 7.76a6 6 0 000 8.49"/><path d="M20.07 4.93a10 10 0 010 14.14"/><path d="M3.93 4.93a10 10 0 000 14.14"/></svg>
+      </div>
+      <span class="nav-label">Live Tracking</span>
+      <span class="nav-badge" id="sb-alert-count">0</span>
+    </div>
+
+    <div class="nav-item" onclick="showPage('zones',this)" title="Hotspot Zones">
+      <div class="nav-icon">
+        <svg viewBox="0 0 24 24"><circle cx="18" cy="5" r="3"/><circle cx="6" cy="12" r="3"/><circle cx="18" cy="19" r="3"/><line x1="8.59" y1="13.51" x2="15.42" y2="17.49"/><line x1="15.41" y1="6.51" x2="8.59" y2="10.49"/></svg>
+      </div>
+      <span class="nav-label">Hotspot Zones</span>
+    </div>
+
+    <div class="nav-section-label">Resources</div>
+
+    <div class="nav-item" onclick="showPage('about',this)" title="About">
+      <div class="nav-icon">
+        <svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
+      </div>
+      <span class="nav-label">About</span>
+    </div>
+
+    <div class="nav-item" onclick="showPage('datasets',this)" title="Datasets">
+      <div class="nav-icon">
+        <svg viewBox="0 0 24 24"><ellipse cx="12" cy="5" rx="9" ry="3"/><path d="M21 12c0 1.66-4 3-9 3s-9-1.34-9-3"/><path d="M3 5v14c0 1.66 4 3 9 3s9-1.34 9-3V5"/></svg>
+      </div>
+      <span class="nav-label">Datasets</span>
+    </div>
+  </nav>
+
+  <div class="sb-bottom">
+    <div class="sb-city-widget">
+      <div class="sb-city-dot"></div>
+      <div class="sb-city-text" id="sb-city">Jalandhar, Punjab</div>
+    </div>
+  </div>
+</aside>
+
+<!-- Sidebar re-open button (visible when sidebar is collapsed) -->
+<div class="sb-reopen" id="sb-reopen" onclick="toggleSidebar()" title="Expand sidebar" style="display:none">
+  <svg viewBox="0 0 24 24" fill="none" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 18 15 12 9 6"/></svg>
+</div>
+
+<!-- ══════════════ MAIN ══════════════ -->
+<div class="main" id="main">
+
+  <!-- TOPBAR -->
+  <header class="topbar">
+    <div class="topbar-breadcrumb">
+      <span>AccidentSense</span>
+      <span class="sep">/</span>
+      <span class="current" id="tb-page">Dashboard</span>
+    </div>
+
+    <div class="topbar-spacer"></div>
+
+    <!-- Filter pills -->
+    <div class="topbar-pill">
+      <div class="tp-btn active" onclick="setTimeFilter(this,'24h')">24H</div>
+      <div class="tp-btn" onclick="setTimeFilter(this,'7d')">7D</div>
+      <div class="tp-btn" onclick="setTimeFilter(this,'30d')">30D</div>
+    </div>
+
+    <!-- Compare toggle -->
+    <div class="topbar-pill">
+      <div class="tp-btn" onclick="toggleCompare(this)" id="compare-btn">Compare</div>
+    </div>
+
+    <!-- City selector -->
+    <div class="city-select" title="Current city">
+      <div class="loc-dot"></div>
+      <span id="tb-city">Jalandhar</span>
+      <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><polyline points="6 9 12 15 18 9"/></svg>
+    </div>
+
+    <!-- Live badge -->
+    <div class="status-live">
+      <svg width="7" height="7" viewBox="0 0 10 10"><circle cx="5" cy="5" r="5" fill="#22C55E"/></svg>
+      LIVE
+    </div>
+
+    <!-- Timestamp -->
+    <div class="topbar-timestamp" id="tb-ts">—</div>
+
+    <!-- Refresh -->
+    <button class="tb-action primary" onclick="refreshAll()" id="refresh-btn">
+      <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><polyline points="1 4 1 10 7 10"/><path d="M3.51 15a9 9 0 1 0 .49-4.95"/></svg>
+      Refresh
+    </button>
+  </header>
+
+  <!-- ════════════ PAGE: DASHBOARD ════════════ -->
+  <div class="page active" id="page-dashboard">
+    <div class="page-inner">
+
+      <!-- Compare banner -->
+      <div class="compare-banner" id="compare-banner">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#F59E0B" stroke-width="2" stroke-linecap="round"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
+        <span>Comparison mode: <strong>Today vs Yesterday</strong> — Trend indicators show change from previous period.</span>
+        <div style="margin-left:auto;cursor:pointer;color:var(--t4)" onclick="toggleCompare(document.getElementById('compare-btn'))">✕</div>
+      </div>
+
+      <!-- KPIs -->
+      <div class="kpi-grid">
+        <!-- Total Clusters -->
+        <div class="kpi-card fu" style="--kpi-glow:rgba(168,85,247,0.15);--kpi-shadow:0 0 24px rgba(168,85,247,0.12);--kpi-icon-bg:rgba(168,85,247,0.1);--kpi-icon-border:rgba(168,85,247,0.2);--kpi-color:var(--p400)" onclick="this.classList.toggle('active-kpi')">
+          <div class="kpi-header">
+            <div class="kpi-icon">
+              <svg viewBox="0 0 24 24"><circle cx="18" cy="5" r="3"/><circle cx="6" cy="12" r="3"/><circle cx="18" cy="19" r="3"/><line x1="8.59" y1="13.51" x2="15.42" y2="17.49"/><line x1="15.41" y1="6.51" x2="8.59" y2="10.49"/></svg>
+            </div>
+            <div class="kpi-trend up" id="kpi-clusters-trend">DBSCAN</div>
+          </div>
+          <div class="kpi-value" id="kpi-clusters">—</div>
+          <div class="kpi-label">Hotspot Clusters</div>
+          <div class="kpi-sublabel">Detected by DBSCAN algorithm</div>
+        </div>
+
+        <!-- High Risk Zones -->
+        <div class="kpi-card fu" style="--kpi-glow:rgba(239,68,68,0.12);--kpi-shadow:0 0 24px rgba(239,68,68,0.1);--kpi-icon-bg:rgba(239,68,68,0.08);--kpi-icon-border:rgba(239,68,68,0.18);--kpi-color:var(--red)" onclick="this.classList.toggle('active-kpi')">
+          <div class="kpi-header">
+            <div class="kpi-icon">
+              <svg viewBox="0 0 24 24"><path d="M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>
+            </div>
+            <div class="kpi-trend warn" id="kpi-highrisk-trend">⚠ Alert</div>
+          </div>
+          <div class="kpi-value" id="kpi-highrisk">—</div>
+          <div class="kpi-label">Critical + High Zones</div>
+          <div class="kpi-sublabel">Immediate attention required</div>
+        </div>
+
+        <!-- Vehicles -->
+        <div class="kpi-card fu" style="--kpi-glow:rgba(34,197,94,0.1);--kpi-shadow:0 0 24px rgba(34,197,94,0.08);--kpi-icon-bg:rgba(34,197,94,0.08);--kpi-icon-border:rgba(34,197,94,0.18);--kpi-color:var(--green)" onclick="this.classList.toggle('active-kpi')">
+          <div class="kpi-header">
+            <div class="kpi-icon">
+              <svg viewBox="0 0 24 24"><rect x="1" y="3" width="15" height="13" rx="1"/><polygon points="16 8 20 8 23 11 23 16 16 16 16 8"/><circle cx="5.5" cy="18.5" r="2.5"/><circle cx="18.5" cy="18.5" r="2.5"/></svg>
+            </div>
+            <div class="kpi-trend up">↑ Online</div>
+          </div>
+          <div class="kpi-value" id="kpi-vehicles">—</div>
+          <div class="kpi-label">Vehicles Tracked</div>
+          <div class="kpi-sublabel">Live GPS monitoring</div>
+        </div>
+
+        <!-- Risk % -->
+        <div class="kpi-card fu" style="--kpi-glow:rgba(6,182,212,0.1);--kpi-shadow:0 0 24px rgba(6,182,212,0.08);--kpi-icon-bg:rgba(6,182,212,0.08);--kpi-icon-border:rgba(6,182,212,0.18);--kpi-color:var(--cyan)" onclick="this.classList.toggle('active-kpi')">
+          <div class="kpi-header">
+            <div class="kpi-icon">
+              <svg viewBox="0 0 24 24"><path d="M22 16.92v3a2 2 0 01-2.18 2 19.79 19.79 0 01-8.63-3.07A19.5 19.5 0 013.07 9.8a19.79 19.79 0 01-3.07-8.68A2 2 0 012 .18h3a2 2 0 012 1.72c.127.96.361 1.903.7 2.81a2 2 0 01-.45 2.11L6.13 5.9a16 16 0 006 6l1.06-1.06a2 2 0 012.11-.45c.907.339 1.85.573 2.81.7A2 2 0 0122 12.92"/></svg>
+            </div>
+            <div class="kpi-trend down" id="kpi-riskpct-trend">Risky</div>
+          </div>
+          <div class="kpi-value" id="kpi-riskpct">—<span style="font-size:1rem">%</span></div>
+          <div class="kpi-label">GPS Readings at Risk</div>
+          <div class="kpi-sublabel" id="kpi-readings-sub">of total readings</div>
+        </div>
+      </div>
+
+      <!-- Map + AI Insights -->
+      <div class="dash-grid">
+        <!-- MAP -->
+        <div class="card map-card accent-purple fu">
+          <div class="card-hd card-p" style="padding-bottom:0">
+            <div class="card-title">
+              <div class="ct-dot"></div>
+              Live Hotspot Map
+            </div>
+            <div style="display:flex;gap:6px;align-items:center">
+              <div class="card-tag">Leaflet.js</div>
+              <div class="card-tag" id="map-cluster-count">0 clusters</div>
+            </div>
+          </div>
+          <div class="map-container" style="height:calc(100% - 52px);margin:8px">
+            <div id="main-map" style="width:100%;height:100%;border-radius:10px"></div>
+
+            <!-- Layer controls -->
+            <div class="map-controls">
+              <div class="map-ctrl-group">
+                <div class="map-ctrl-btn active" id="ctrl-heatmap" onclick="toggleMapLayer('heatmap')">
+                  <div class="map-ctrl-dot"></div> Heatmap
+                </div>
+                <div class="map-ctrl-btn active" id="ctrl-clusters" onclick="toggleMapLayer('clusters')">
+                  <div class="map-ctrl-dot"></div> Clusters
+                </div>
+                <div class="map-ctrl-btn active" id="ctrl-vehicles" onclick="toggleMapLayer('vehicles')">
+                  <div class="map-ctrl-dot"></div> Vehicles
+                </div>
+              </div>
+              <div class="map-ctrl-group">
+                <div class="map-ctrl-btn" id="ctrl-fit" onclick="fitMapBounds()">
+                  <div class="map-ctrl-dot" style="background:var(--cyan)"></div> Fit All
+                </div>
+                <div class="map-ctrl-btn" id="ctrl-reset" onclick="resetMapView()">
+                  <div class="map-ctrl-dot" style="background:var(--t3)"></div> Reset
+                </div>
+              </div>
+            </div>
+
+            <!-- HUD -->
+            <div class="map-hud">
+              <div class="map-hud-title">Map Statistics</div>
+              <div class="hud-row"><span class="hud-label">Clusters</span><span class="hud-val" id="mhud-clusters">—</span></div>
+              <div class="hud-row"><span class="hud-label">Vehicles</span><span class="hud-val" id="mhud-vehicles">—</span></div>
+              <div class="hud-row"><span class="hud-label">In Alert</span><span class="hud-val" style="color:var(--red)" id="mhud-alerts">—</span></div>
+              <div class="hud-row"><span class="hud-label">Heat Pts</span><span class="hud-val" id="mhud-points">—</span></div>
+            </div>
+
+            <!-- Legend -->
+            <div class="map-legend">
+              <div class="legend-title">Risk Level</div>
+              <div class="legend-row"><div class="legend-swatch" style="background:#A855F7"></div>Critical (&gt;75)</div>
+              <div class="legend-row"><div class="legend-swatch" style="background:#EF4444"></div>High (50–75)</div>
+              <div class="legend-row"><div class="legend-swatch" style="background:#F59E0B"></div>Medium (25–50)</div>
+              <div class="legend-row"><div class="legend-swatch" style="background:#22C55E"></div>Low (&lt;25)</div>
+              <hr class="div" style="margin:7px 0">
+              <div class="legend-row"><div class="legend-swatch gradient" style="width:22px;height:8px;border-radius:3px"></div>Heatmap</div>
+            </div>
+          </div>
+        </div>
+
+        <!-- AI INSIGHTS -->
+        <div class="card insights-panel accent-purple fu">
+          <div class="card-hd card-p" style="padding-bottom:12px">
+            <div class="card-title">
+              <div class="ct-dot" style="background:var(--cyan);box-shadow:0 0 6px var(--cyan)"></div>
+              AI Insights
+            </div>
+            <div class="card-tag" id="insights-count">Analyzing…</div>
+          </div>
+          <div class="insights-body" id="insights-body">
+            <div class="ai-thinking">
+              <div class="ai-dots"><span></span><span></span><span></span></div>
+              Analyzing hotspot patterns…
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Bottom Row: Charts -->
+      <div class="dash-grid-bottom">
+        <!-- Hourly Pattern -->
+        <div class="card accent-blue fu">
+          <div class="card-hd card-p" style="padding-bottom:0">
+            <div class="card-title">Accidents by Hour</div>
+            <div class="card-tag">24H Pattern</div>
+          </div>
+          <div class="card-p" style="padding-top:8px">
+            <div class="chart-box" style="height:160px"><canvas id="chart-hourly"></canvas></div>
+          </div>
+        </div>
+
+        <!-- Event Breakdown -->
+        <div class="card accent-purple fu">
+          <div class="card-hd card-p" style="padding-bottom:0">
+            <div class="card-title">Event Distribution</div>
+            <div class="card-tag">All Time</div>
+          </div>
+          <div class="card-p" style="padding-top:8px">
+            <div class="chart-box" style="height:160px"><canvas id="chart-events"></canvas></div>
+          </div>
+        </div>
+
+        <!-- Alerts Feed -->
+        <div class="card accent-red fu" style="display:flex;flex-direction:column">
+          <div class="card-hd card-p" style="padding-bottom:12px;flex-shrink:0">
+            <div class="card-title">
+              <div class="ct-dot" style="background:var(--red);box-shadow:0 0 6px var(--red);animation:pulse-dot 1.5s infinite"></div>
+              Live Alerts
+            </div>
+            <div class="card-tag" id="dash-alert-badge">0 active</div>
+          </div>
+          <div class="alerts-feed" id="dash-alerts">
+            <div class="empty-state"><div class="ei">🔔</div><p>No active alerts</p></div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Top Zones Table -->
+      <div class="card fu" style="margin-bottom:0">
+        <div class="card-hd card-p" style="padding-bottom:12px">
+          <div class="card-title">Top Danger Zones</div>
+          <div style="display:flex;gap:6px">
+            <div class="card-tag" id="table-count">— clusters</div>
+            <div class="card-tag" style="cursor:pointer;color:var(--p400);border-color:var(--border-purple)" onclick="showPage('zones',null)">View All →</div>
+          </div>
+        </div>
+        <div class="table-wrap">
+          <table class="data-table">
+            <thead>
+              <tr>
+                <th>ID</th><th>Location</th><th>Size</th>
+                <th>Avg Speed</th><th>Dominant Event</th>
+                <th>Risk Score</th><th>Level</th>
+              </tr>
+            </thead>
+            <tbody id="dash-table"></tbody>
+          </table>
+        </div>
+      </div>
+
+    </div>
+  </div><!-- /dashboard page -->
+
+  <!-- ════════════ PAGE: MAP ════════════ -->
+  <div class="page" id="page-map">
+    <div class="page-inner">
+      <div class="page-header">
+        <div class="page-header-row">
+          <div>
+            <div class="page-eyebrow">Geospatial View</div>
+            <div class="page-title"><span class="grad">Live Hotspot</span> Map</div>
+            <div class="page-sub">Interactive map with DBSCAN clusters, heatmap overlay, and live vehicle tracking</div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Heatmap Controls Bar -->
+      <div class="hm-panel-card">
+        <div class="hm-panel-title">
+          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="var(--p400)" stroke-width="2" stroke-linecap="round"><path d="M12 2a10 10 0 1 0 10 10A10 10 0 0 0 12 2zm0 18a8 8 0 1 1 8-8 8 8 0 0 1-8 8zm0-14a6 6 0 0 0-6 6c0 2.22 1.21 4.16 3 5.19V17a1 1 0 0 0 1 1h4a1 1 0 0 0 1-1v-.81A6 6 0 0 0 12 6z"/></svg>
+          Heatmap Controls
+        </div>
+        <div class="hm-panel-divider"></div>
+        <div class="hm-panel-group">
+          <div class="hm-panel-item">
+            <span>Radius</span>
+            <input class="hm-slider" id="hm-radius" type="range" min="10" max="60" value="28" oninput="updateHeatmap(this,'radius')" style="width:100px">
+            <span class="hm-val" id="hm-radius-val">28</span>
+          </div>
+          <div class="hm-panel-item">
+            <span>Blur</span>
+            <input class="hm-slider" id="hm-blur" type="range" min="5" max="50" value="22" oninput="updateHeatmap(this,'blur')" style="width:100px">
+            <span class="hm-val" id="hm-blur-val">22</span>
+          </div>
+          <div class="hm-panel-item">
+            <span>Intensity</span>
+            <input class="hm-slider" id="hm-intensity" type="range" min="10" max="200" value="100" oninput="updateHeatmap(this,'intensity')" style="width:100px">
+            <span class="hm-val" id="hm-intensity-val">1.0</span>
+          </div>
+        </div>
+        <div class="hm-panel-divider"></div>
+        <div class="hm-panel-theme-row">
+          <span style="font-size:0.62rem;color:var(--t4);margin-right:4px;white-space:nowrap">Theme:</span>
+          <div class="hm-theme-btn active" onclick="setHeatmapTheme('default',this)">Default</div>
+          <div class="hm-theme-btn" onclick="setHeatmapTheme('fire',this)">Fire</div>
+          <div class="hm-theme-btn" onclick="setHeatmapTheme('cool',this)">Cool</div>
+          <div class="hm-theme-btn" onclick="setHeatmapTheme('mono',this)">Mono</div>
+        </div>
+        <div class="hm-panel-divider"></div>
+        <div style="display:flex;gap:5px;flex-shrink:0">
+          <div class="map-ctrl-btn" onclick="fitMapBounds()" style="padding:5px 11px;border-radius:7px;font-size:0.68rem;font-weight:500;cursor:pointer;color:var(--cyan);background:rgba(6,182,212,0.08);border:1px solid rgba(6,182,212,0.2)">⊞ Fit All</div>
+          <div class="map-ctrl-btn" onclick="resetMapView()" style="padding:5px 11px;border-radius:7px;font-size:0.68rem;font-weight:500;cursor:pointer;color:var(--t2);background:var(--glass);border:1px solid var(--border)">↺ Reset</div>
+        </div>
+      </div>
+
+      <div class="card fu" style="height:calc(100vh - 268px);min-height:500px;padding:0;overflow:hidden">
+        <div id="full-map" style="width:100%;height:100%;border-radius:calc(var(--radius-lg) - 1px)"></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ════════════ PAGE: ANALYTICS ════════════ -->
+  <div class="page" id="page-analytics">
+    <div class="page-inner">
+      <div class="page-header">
+        <div class="page-eyebrow">Data Analysis</div>
+        <div class="page-title">Traffic <span class="grad">Analytics</span></div>
+        <div class="page-sub">Historical patterns · Speed analysis · Weekly trends · Jalandhar</div>
+      </div>
+
+      <div class="a2">
+        <div class="card fu accent-blue">
+          <div class="card-hd card-p" style="padding-bottom:0">
+            <div class="card-title">Accidents by Hour</div><div class="card-tag">24H</div>
+          </div>
+          <div class="card-p" style="padding-top:8px">
+            <div class="chart-box" style="height:200px"><canvas id="an-hourly"></canvas></div>
+          </div>
+        </div>
+        <div class="card fu accent-purple">
+          <div class="card-hd card-p" style="padding-bottom:0">
+            <div class="card-title">Event Type Distribution</div><div class="card-tag">All Time</div>
+          </div>
+          <div class="card-p" style="padding-top:8px">
+            <div class="chart-box" style="height:200px"><canvas id="an-events"></canvas></div>
+          </div>
+        </div>
+      </div>
+
+      <div class="a2" style="margin-top:13px">
+        <div class="card fu accent-green">
+          <div class="card-hd card-p" style="padding-bottom:0">
+            <div class="card-title">Speed Distribution</div><div class="card-tag">km/h</div>
+          </div>
+          <div class="card-p" style="padding-top:8px">
+            <div class="chart-box" style="height:200px"><canvas id="an-speed"></canvas></div>
+          </div>
+        </div>
+        <div class="card fu accent-amber">
+          <div class="card-hd card-p" style="padding-bottom:0">
+            <div class="card-title">Risk Event Trend</div><div class="card-tag">7-Day</div>
+          </div>
+          <div class="card-p" style="padding-top:8px">
+            <div class="chart-box" style="height:200px"><canvas id="an-trend"></canvas></div>
+          </div>
+        </div>
+      </div>
+
+      <div class="card fu" style="margin-top:13px">
+        <div class="card-hd card-p" style="padding-bottom:12px">
+          <div class="card-title">Full Cluster Scorecard</div>
+          <div class="card-tag" id="an-cluster-count">— clusters</div>
+        </div>
+        <div class="table-wrap">
+          <table class="data-table">
+            <thead><tr><th>#</th><th>Centroid</th><th>Points</th><th>Avg Speed</th><th>Dominant Event</th><th>Risk Score</th><th>Level</th></tr></thead>
+            <tbody id="an-table"></tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ════════════ PAGE: EVALUATION ════════════ -->
+  <div class="page" id="page-evaluation">
+    <div class="page-inner">
+      <div class="page-header">
+        <div class="page-eyebrow">ML Performance</div>
+        <div class="page-title">Model <span class="grad">Evaluation</span></div>
+        <div class="page-sub">DBSCAN vs K-Means · Silhouette Score · Davies-Bouldin Index</div>
+      </div>
+
+      <div class="eval-strip">
+        <div class="eval-card fu" style="--ec:var(--p400)"><div class="eval-val" id="ev-sil-db">—</div><div class="eval-lbl">DBSCAN Silhouette</div><div class="eval-hint">↑ closer to 1.0 is better</div></div>
+        <div class="eval-card fu" style="--ec:var(--amber)"><div class="eval-val" id="ev-dbi-db">—</div><div class="eval-lbl">DBSCAN Davies-Bouldin</div><div class="eval-hint">↓ closer to 0 is better</div></div>
+        <div class="eval-card fu" style="--ec:var(--green)"><div class="eval-val" id="ev-sil-km">—</div><div class="eval-lbl">K-Means Silhouette</div><div class="eval-hint">↑ closer to 1.0 is better</div></div>
+        <div class="eval-card fu" style="--ec:var(--pink)"><div class="eval-val" id="ev-dbi-km">—</div><div class="eval-lbl">K-Means Davies-Bouldin</div><div class="eval-hint">↓ closer to 0 is better</div></div>
+      </div>
+
+      <div class="a2">
+        <div class="card fu accent-blue">
+          <div class="card-hd card-p" style="padding-bottom:0">
+            <div class="card-title">Model Comparison</div>
+            <div style="display:flex;gap:5px">
+              <span style="font-size:.58rem;font-weight:700;padding:2px 7px;border-radius:20px;background:rgba(6,182,212,.1);color:var(--cyan);border:1px solid rgba(6,182,212,.2);font-family:var(--font-mono)">DBSCAN</span>
+              <span style="font-size:.58rem;font-weight:700;padding:2px 7px;border-radius:20px;background:rgba(245,158,11,.1);color:var(--amber);border:1px solid rgba(245,158,11,.2);font-family:var(--font-mono)">K-Means</span>
+            </div>
+          </div>
+          <div class="card-p" style="padding-top:8px">
+            <div class="chart-box" style="height:200px"><canvas id="ev-compare"></canvas></div>
+          </div>
+        </div>
+        <div class="card fu accent-amber">
+          <div class="card-hd card-p" style="padding-bottom:0">
+            <div class="card-title">Elbow Curve</div><div class="card-tag">Inertia vs K</div>
+          </div>
+          <div class="card-p" style="padding-top:8px">
+            <div class="chart-box" style="height:200px"><canvas id="ev-elbow"></canvas></div>
+          </div>
+        </div>
+      </div>
+
+      <div class="a2" style="margin-top:13px">
+        <div class="card fu accent-purple">
+          <div class="card-hd card-p" style="padding-bottom:0">
+            <div class="card-title">Risk Label Distribution</div><div class="card-tag">DBSCAN Output</div>
+          </div>
+          <div class="card-p" style="padding-top:8px">
+            <div class="chart-box" style="height:200px"><canvas id="ev-labels"></canvas></div>
+          </div>
+        </div>
+        <div class="card fu">
+          <div class="card-hd card-p" style="padding-bottom:12px"><div class="card-title">Algorithm Notes</div></div>
+          <div class="card-p" style="padding-top:0" id="ev-notes"></div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ════════════ PAGE: LIVE ════════════ -->
+  <div class="page" id="page-live">
+    <div class="page-inner">
+      <div class="page-header">
+        <div class="page-eyebrow">Real-Time</div>
+        <div class="page-title">Live <span class="grad">Tracking</span></div>
+        <div class="page-sub">14 simulated vehicles · Jalandhar road network · Zone alert monitoring</div>
+      </div>
+
+      <div class="a2" style="margin-bottom:13px">
+        <div class="card fu accent-red" style="display:flex;flex-direction:column">
+          <div class="card-hd card-p" style="padding-bottom:12px;flex-shrink:0">
+            <div class="card-title"><div class="ct-dot" style="background:var(--red);animation:pulse-dot 1.5s infinite"></div>Alert Feed</div>
+            <div class="card-tag" id="live-alert-count">0 active</div>
+          </div>
+          <div class="alerts-feed" id="live-alerts" style="max-height:300px"></div>
+        </div>
+        <div class="card fu">
+          <div class="card-hd card-p" style="padding-bottom:12px">
+            <div class="card-title">Vehicle Status Board</div>
+            <div class="card-tag" id="live-veh-count">0 online</div>
+          </div>
+          <div class="card-p" style="padding-top:0">
+            <div class="vehicle-grid" id="live-vehicles"></div>
+          </div>
+        </div>
+      </div>
+
+      <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:12px;margin-bottom:13px">
+        <div class="card fu" style="padding:16px;text-align:center">
+          <div style="font-size:1.6rem;font-weight:800;color:var(--cyan);font-variant-numeric:tabular-nums" id="sim-online">—</div>
+          <div style="font-size:0.65rem;color:var(--t3);margin-top:3px">Vehicles Online</div>
+        </div>
+        <div class="card fu" style="padding:16px;text-align:center">
+          <div style="font-size:1.6rem;font-weight:800;color:var(--red);font-variant-numeric:tabular-nums" id="sim-alerts">—</div>
+          <div style="font-size:0.65rem;color:var(--t3);margin-top:3px">In Alert Zone</div>
+        </div>
+        <div class="card fu" style="padding:16px;text-align:center">
+          <div style="font-size:1.6rem;font-weight:800;color:var(--amber);font-variant-numeric:tabular-nums" id="sim-speed">—</div>
+          <div style="font-size:0.65rem;color:var(--t3);margin-top:3px">Avg Speed km/h</div>
+        </div>
+        <div class="card fu" style="padding:16px;text-align:center">
+          <div style="font-size:1.6rem;font-weight:800;color:var(--green);font-variant-numeric:tabular-nums" id="sim-normal">—</div>
+          <div style="font-size:0.65rem;color:var(--t3);margin-top:3px">Normal Status</div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ════════════ PAGE: ZONES ════════════ -->
+  <div class="page" id="page-zones">
+    <div class="page-inner">
+      <div class="page-header">
+        <div class="page-eyebrow">DBSCAN Output</div>
+        <div class="page-title">Hotspot <span class="grad">Zone Registry</span></div>
+        <div class="page-sub">All detected clusters · Click any row to view on map</div>
+      </div>
+      <div class="card fu">
+        <div class="card-hd card-p" style="padding-bottom:12px">
+          <div class="card-title">All Detected Zones</div>
+          <div class="card-tag" id="zones-count">Loading…</div>
+        </div>
+        <div class="table-wrap">
+          <table class="data-table">
+            <thead><tr><th>ID</th><th>Lat / Lon</th><th>Points</th><th>Avg Speed</th><th>Avg Jerk</th><th>Risk %</th><th>Score</th><th>Level</th></tr></thead>
+            <tbody id="zones-table"></tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ════════════ PAGE: ABOUT ════════════ -->
+  <div class="page" id="page-about">
+    <div class="page-inner">
+      <div class="about-hero fu">
+        <div class="about-badge">🛣️ Smart City Infrastructure · Jalandhar, Punjab</div>
+        <div class="about-title">Road Accident Hotspot<br><span class="page-title" style="font-size:inherit"><span class="grad">Discovery System</span></span></div>
+        <div class="about-desc">An AI-powered platform that uses unsupervised machine learning (DBSCAN) to automatically detect dangerous road accident zones in Jalandhar, Punjab — from raw GPS trajectories to actionable safety insights in real-time.</div>
+      </div>
+
+      <div class="steps-grid">
+        <div class="step-card fu"><div class="step-num">01</div><div class="step-icon">📡</div><div class="step-title">GPS Data Collection</div><div class="step-desc">Vehicle GPS coordinates collected at 10Hz. Includes latitude, longitude, speed, IMU data. In production, connect to iRAD or live IoT vehicle sensors.</div></div>
+        <div class="step-card fu"><div class="step-num">02</div><div class="step-icon">⚗️</div><div class="step-title">Feature Engineering</div><div class="step-desc">Raw GPS enriched with: jerk, danger proximity score, event classification, time-of-day, road type, rolling statistics per vehicle window.</div></div>
+        <div class="step-card fu"><div class="step-num">03</div><div class="step-icon">🧬</div><div class="step-title">DBSCAN Clustering</div><div class="step-desc">Density-based spatial clustering with Haversine metric. Groups nearby accident-prone points. ε=95m, min_samples=5. Noise labeled −1.</div></div>
+        <div class="step-card fu"><div class="step-num">04</div><div class="step-icon">⚖️</div><div class="step-title">Risk Scoring</div><div class="step-desc">Each cluster scored 0–100: density×40% + severity×35% + frequency×25%. Labels: Low/Medium/High/Critical based on score bands.</div></div>
+        <div class="step-card fu"><div class="step-num">05</div><div class="step-icon">🚨</div><div class="step-title">Real-Time Alerts</div><div class="step-desc">14 vehicles traverse Jalandhar every 3 seconds. Haversine check against all cluster radii. Zone entry triggers immediate severity-classified alert.</div></div>
+        <div class="step-card fu"><div class="step-num">06</div><div class="step-icon">📊</div><div class="step-title">Analytics & Insights</div><div class="step-desc">Interactive Leaflet map, Chart.js analytics, AI-generated textual insights, model comparison (DBSCAN vs K-Means) — all live.</div></div>
+      </div>
+
+      <div class="card fu" style="margin-bottom:14px">
+        <div class="card-hd card-p" style="padding-bottom:12px"><div class="card-title">Tech Stack</div></div>
+        <div class="card-p" style="padding-top:0">
+          <div class="tech-grid">
+            <div class="tech-card"><div class="tech-icon">🐍</div><div class="tech-name">FastAPI</div><div class="tech-role">Backend API</div></div>
+            <div class="tech-card"><div class="tech-icon">🧬</div><div class="tech-name">scikit-learn</div><div class="tech-role">DBSCAN · K-Means</div></div>
+            <div class="tech-card"><div class="tech-icon">🗺️</div><div class="tech-name">Leaflet.js</div><div class="tech-role">Interactive Map</div></div>
+            <div class="tech-card"><div class="tech-icon">📈</div><div class="tech-name">Chart.js</div><div class="tech-role">Analytics Charts</div></div>
+            <div class="tech-card"><div class="tech-icon">🐼</div><div class="tech-name">Pandas/NumPy</div><div class="tech-role">Data Processing</div></div>
+            <div class="tech-card"><div class="tech-icon">🌍</div><div class="tech-name">Haversine</div><div class="tech-role">Geospatial Metric</div></div>
+            <div class="tech-card"><div class="tech-icon">⚡</div><div class="tech-name">Real-Time Sim</div><div class="tech-role">14 Live Vehicles</div></div>
+            <div class="tech-card"><div class="tech-icon">🏙️</div><div class="tech-name">Jalandhar Grid</div><div class="tech-role">12 Danger Zones</div></div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ════════════ PAGE: DATASETS ════════════ -->
+  <div class="page" id="page-datasets">
+    <div class="page-inner">
+      <div class="page-header">
+        <div class="page-eyebrow">Real Data Sources</div>
+        <div class="page-title">Available <span class="grad">Datasets</span></div>
+        <div class="page-sub">Drop-in CSV replacement for synthetic simulation</div>
+      </div>
+      <div class="ds-grid">
+        <div class="ds-card fu" style="--ds-acc:linear-gradient(90deg,var(--p600),var(--cyan))">
+          <div class="ds-hdr"><div class="ds-ico">🏛️</div><div><div class="ds-name">iRAD Database</div><div class="ds-src">irad.nic.in · MoRTH, India</div></div></div>
+          <div class="ds-desc">India's official GPS-tagged accident database. Contains severity, vehicle type, road conditions across Punjab. Best source for Jalandhar real data.</div>
+          <div class="ds-tags"><span class="ds-tag">GPS lat/lon</span><span class="ds-tag">Punjab data</span><span class="ds-tag">Severity 1–3</span><span class="ds-tag">Free</span></div>
+          <a class="ds-link" href="https://irad.nic.in" target="_blank">Open iRAD Portal →</a>
+        </div>
+        <div class="ds-card fu" style="--ds-acc:linear-gradient(90deg,var(--green),var(--teal))">
+          <div class="ds-hdr"><div class="ds-ico">📊</div><div><div class="ds-name">data.gov.in</div><div class="ds-src">data.gov.in · NDAP</div></div></div>
+          <div class="ds-desc">Open government dataset with district-wise road accident statistics. Download CSV and connect directly to the ML pipeline.</div>
+          <div class="ds-tags"><span class="ds-tag">CSV/JSON</span><span class="ds-tag">District-wise</span><span class="ds-tag">Open license</span></div>
+          <a class="ds-link" href="https://data.gov.in/search?title=road+accident" target="_blank">Browse Datasets →</a>
+        </div>
+        <div class="ds-card fu" style="--ds-acc:linear-gradient(90deg,var(--orange),var(--red))">
+          <div class="ds-hdr"><div class="ds-ico">🎯</div><div><div class="ds-name">Kaggle UK Road Safety</div><div class="ds-src">kaggle.com · Community</div></div></div>
+          <div class="ds-desc">1.8M rows (2005–2019) with GPS, severity 1–3, road type, speed limit, junction detail, weather. Ideal for DBSCAN feature engineering.</div>
+          <div class="ds-tags"><span class="ds-tag">1.8M+ rows</span><span class="ds-tag">GPS lat/lon</span><span class="ds-tag">Severity</span><span class="ds-tag">ML-ready</span></div>
+          <a class="ds-link" href="https://www.kaggle.com/datasets/tsiaras/uk-road-safety-accidents-and-vehicles" target="_blank">View on Kaggle →</a>
+        </div>
+        <div class="ds-card fu" style="--ds-acc:linear-gradient(90deg,var(--pink),var(--p400))">
+          <div class="ds-hdr"><div class="ds-ico">🗺️</div><div><div class="ds-name">OpenStreetMap</div><div class="ds-src">overpass-api.de · OSM</div></div></div>
+          <div class="ds-desc">Free Jalandhar road network. Speed cameras, traffic signals, hazard nodes, road surface types. Already integrated in the backend module.</div>
+          <div class="ds-tags"><span class="ds-tag">Real-time</span><span class="ds-tag">No API key</span><span class="ds-tag">Jalandhar roads</span><span class="ds-tag">Integrated</span></div>
+          <a class="ds-link" href="https://overpass-turbo.eu" target="_blank">Try Overpass Turbo →</a>
+        </div>
+        <div class="ds-card fu" style="--ds-acc:linear-gradient(90deg,var(--amber),var(--orange))">
+          <div class="ds-hdr"><div class="ds-ico">🚔</div><div><div class="ds-name">NCRB Report</div><div class="ds-src">ncrb.gov.in · Official</div></div></div>
+          <div class="ds-desc">Annual district-level data: road type, cause, time, victim details. Punjab chapter includes Jalandhar breakdowns with full statistics.</div>
+          <div class="ds-tags"><span class="ds-tag">District level</span><span class="ds-tag">Annual PDF</span><span class="ds-tag">Official</span></div>
+          <a class="ds-link" href="https://ncrb.gov.in/accidental-deaths-suicides-india" target="_blank">View Reports →</a>
+        </div>
+        <div class="ds-card fu" style="--ds-acc:linear-gradient(90deg,var(--cyan),var(--p400))">
+          <div class="ds-hdr"><div class="ds-ico">⚡</div><div><div class="ds-name">Integration Guide</div><div class="ds-src">How to use real data</div></div></div>
+          <div class="ds-desc">In <code>main.py</code>, replace <code>generate_dataset()</code> with your CSV loader. Map columns to: <code>latitude, longitude, speed_kmh, event_type, timestamp, vehicle_id</code>. DBSCAN pipeline works unchanged.</div>
+          <div class="ds-tags"><span class="ds-tag">Drop-in CSV</span><span class="ds-tag">Pandas</span><span class="ds-tag">Auto-clustering</span></div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+</div><!-- /main -->
+
+<!-- ══════════════════════════════════════
+   JAVASCRIPT
+══════════════════════════════════════ -->
+<script>
+/* ─── State ─── */
+const S = {
+  overview: null, hotspots: [], analytics: null,
+  evaluation: null, vehicles: [], heatmap: [],
+  alertHistory: [], timeFilter: '24h', compareMode: false,
+};
+
+/* ─── Heatmap config state ─── */
+const hmConfig = {
+  radius: 28, blur: 22, maxIntensity: 1.0,
+  gradient: {
+    0.0: 'rgba(7, 7, 80, 0.0)',
+    0.1: 'rgba(30, 30, 200, 0.5)',
+    0.3: 'rgba(80, 30, 220, 0.7)',
+    0.5: 'rgba(168, 85, 247, 0.8)',
+    0.7: 'rgba(239, 68, 68, 0.9)',
+    0.9: 'rgba(249, 115, 22, 1.0)',
+    1.0: 'rgba(255, 255, 100, 1.0)',
+  }
+};
+
+const hmThemes = {
+  default: {
+    0.0: 'rgba(7, 7, 80, 0.0)',   0.1: 'rgba(30, 30, 200, 0.5)',
+    0.3: 'rgba(80, 30, 220, 0.7)',0.5: 'rgba(168, 85, 247, 0.8)',
+    0.7: 'rgba(239, 68, 68, 0.9)',0.9: 'rgba(249, 115, 22, 1.0)',
+    1.0: 'rgba(255, 255, 100, 1.0)',
+  },
+  fire: {
+    0.0: 'rgba(0,0,0,0)',   0.2: 'rgba(60,0,0,0.6)',
+    0.4: 'rgba(200,20,0,0.8)', 0.6: 'rgba(255,100,0,0.9)',
+    0.8: 'rgba(255,200,0,1.0)', 1.0: 'rgba(255,255,255,1.0)',
+  },
+  cool: {
+    0.0: 'rgba(0,0,0,0)',   0.2: 'rgba(0,30,80,0.5)',
+    0.4: 'rgba(0,80,180,0.7)', 0.6: 'rgba(0,180,200,0.85)',
+    0.8: 'rgba(100,240,255,0.95)', 1.0: 'rgba(255,255,255,1.0)',
+  },
+  mono: {
+    0.0: 'rgba(0,0,0,0)',   0.2: 'rgba(80,80,80,0.4)',
+    0.5: 'rgba(160,160,160,0.7)', 0.8: 'rgba(220,220,220,0.9)',
+    1.0: 'rgba(255,255,255,1.0)',
+  }
+};
+
+/* ─── Time formatter ─── */
+function fmtTime(d) {
+  return d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' });
+}
+
+/* ─── Live clock ─── */
+function startLiveClock() {
+  function tick() {
+    const el = document.getElementById('tb-ts');
+    if (el) el.textContent = fmtTime(new Date());
+  }
+  tick();
+  setInterval(tick, 1000);
+}
+
+/* ─── Maps ─── */
+let mainMap = null, fullMap = null;
+let heatLayer = null, clusterGroup = null, vehicleGroup = null;
+let fullHeatLayer = null, fullClusterGroup = null, fullVehicleGroup = null;
+let layerState = { heatmap: true, clusters: true, vehicles: true };
+let chartsBuilt = { analytics: false, evaluation: false };
+let chartsCache = {};
+
+const API = window.location.origin;
+
+/* ─── Sidebar ─── */
+let sidebarCollapsed = false;
+function toggleSidebar() {
+  sidebarCollapsed = !sidebarCollapsed;
+  document.getElementById('sidebar').classList.toggle('collapsed', sidebarCollapsed);
+  document.getElementById('main').classList.toggle('expanded', sidebarCollapsed);
+  const reopenBtn = document.getElementById('sb-reopen');
+  if (reopenBtn) reopenBtn.style.display = sidebarCollapsed ? 'flex' : 'none';
+}
+
+/* ─── Navigation ─── */
+function showPage(id, navEl) {
+  document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
+  document.querySelectorAll('.nav-item').forEach(n => n.classList.remove('active'));
+
+  const page = document.getElementById('page-' + id);
+  if (page) page.classList.add('active');
+  if (navEl) navEl.classList.add('active');
+  else {
+    document.querySelectorAll('.nav-item').forEach(n => {
+      if (n.getAttribute('onclick')?.includes("'" + id + "'")) n.classList.add('active');
+    });
+  }
+
+  const labels = {
+    dashboard: 'Dashboard', map: 'Live Map', analytics: 'Analytics',
+    evaluation: 'Model Evaluation', live: 'Live Tracking',
+    zones: 'Hotspot Zones', about: 'About', datasets: 'Datasets',
+  };
+  document.getElementById('tb-page').textContent = labels[id] || id;
+
+  // Lazy init maps
+  if (id === 'map' && !fullMap) initFullMap();
+  if (id === 'analytics' && !chartsBuilt.analytics) buildAnalyticsCharts();
+  if (id === 'evaluation' && !chartsBuilt.evaluation) buildEvalCharts();
+}
+
+/* ─── Time filter ─── */
+function setTimeFilter(el, val) {
+  S.timeFilter = val;
+  document.querySelectorAll('.tp-btn').forEach(b => {
+    if (['24h','7d','30d'].includes(b.textContent.toLowerCase().trim())) b.classList.remove('active');
+  });
+  el.classList.add('active');
+}
+
+/* ─── Compare mode ─── */
+function toggleCompare(el) {
+  S.compareMode = !S.compareMode;
+  el.classList.toggle('active', S.compareMode);
+  document.getElementById('compare-banner').classList.toggle('visible', S.compareMode);
+}
+
+/* ─── Count-up ─── */
+function countUp(el, target, dur = 600, suffix = '') {
+  if (!el) return;
+  const start = performance.now(), from = parseFloat(el.textContent) || 0, num = parseFloat(target);
+  const step = now => {
+    const t = Math.min((now - start) / dur, 1);
+    const e = t < 0.5 ? 2 * t * t : -1 + (4 - 2 * t) * t;
+    el.textContent = (from + (num - from) * e).toFixed(0) + suffix;
+    if (t < 1) requestAnimationFrame(step);
+    else el.textContent = num + suffix;
+  };
+  requestAnimationFrame(step);
+}
+
+/* ─── API fetch ─── */
+async function apiFetch(path) {
+  const r = await fetch(API + path);
+  if (!r.ok) throw new Error(r.status);
+  return r.json();
+}
+
+/* ─── Load all ─── */
+async function loadAll() {
+  try {
+    const [ov, hs, an, ev] = await Promise.all([
+      apiFetch('/api/overview'),
+      apiFetch('/api/hotspots'),
+      apiFetch('/api/analytics'),
+      apiFetch('/api/evaluation'),
+    ]);
+
+    S.overview = ov; S.hotspots = hs.clusters || [];
+    S.analytics = an; S.evaluation = ev;
+
+    updateKPIs(ov);
+    buildInsights();
+    buildDashTable();
+    buildAllTables();
+    buildHourlyMiniChart();
+
+    // Init main map on first load
+    if (!mainMap) {
+      initMainMap();
+    } else {
+      refreshMapLayers();
+    }
+
+    if (chartsBuilt.analytics) buildAnalyticsCharts();
+    if (chartsBuilt.evaluation) buildEvalCharts();
+
+    // Heatmap - Fixed API Response Handling
+    const hd = await apiFetch('/api/heatmap');
+    S.heatmap = Array.isArray(hd) ? hd : (hd.points || []);
+    if (mainMap) { addHeatmap(mainMap, heatLayer, S.heatmap, (l) => { heatLayer = l; }); }
+    if (fullMap) { addHeatmap(fullMap, fullHeatLayer, S.heatmap, (l) => { fullHeatLayer = l; }); }
+    document.getElementById('mhud-points').textContent = S.heatmap.length;
+
+    document.getElementById('tb-ts').textContent = fmtTime(new Date());
+    if (ov.city) {
+      document.getElementById('sb-city').textContent = ov.city;
+      document.getElementById('tb-city').textContent = ov.city.split(',')[0];
+    }
+  } catch (e) { console.error('loadAll error:', e); }
+}
+
+async function loadVehicles() {
+  try {
+    const d = await apiFetch('/api/vehicles');
+    S.vehicles = d.vehicles || [];
+    updateVehicles();
+    updateLivePage();
+  } catch (e) {}
+}
+
+/* ─── KPIs ─── */
+function updateKPIs(ov) {
+  countUp(document.getElementById('kpi-clusters'), ov.total_clusters);
+  countUp(document.getElementById('kpi-highrisk'), ov.high_risk_zones);
+  countUp(document.getElementById('kpi-vehicles'), ov.total_vehicles);
+  countUp(document.getElementById('kpi-riskpct'), ov.risk_pct);
+
+  const rs = document.getElementById('kpi-readings-sub');
+  if (rs) rs.textContent = `of ${(ov.total_readings || 0).toLocaleString()} total readings`;
+}
+
+/* ─── AI Insights ─── */
+function buildInsights() {
+  const body = document.getElementById('insights-body');
+  if (!body || !S.hotspots.length) return;
+
+  const ov = S.overview;
+  const top = S.hotspots[0];
+  const critCount = S.hotspots.filter(c => c.risk_label === 'critical').length;
+  const highCount = S.hotspots.filter(c => c.risk_label === 'high').length;
+  const an = S.analytics;
+  const peakHour = an?.peak_hour ?? 0;
+
+  const insights = [
+    {
+      type: 'Critical Alert', color: '#EF4444',
+      bg: 'rgba(239,68,68,0.1)', border: 'rgba(239,68,68,0.2)',
+      time: 'Now',
+      text: `<strong>${critCount} critical zone${critCount !== 1 ? 's' : ''}</strong> detected — Cluster C${top?.cluster_id} near (${top?.centroid_lat?.toFixed(3)}, ${top?.centroid_lon?.toFixed(3)}) with risk score <strong>${top?.risk_score}</strong>/100. Dominant event: <strong>${(top?.dominant_event || '').replace('_', ' ')}</strong>.`
+    },
+    {
+      type: 'Pattern', color: '#A855F7',
+      bg: 'rgba(168,85,247,0.1)', border: 'rgba(168,85,247,0.2)',
+      time: '24H',
+      text: `Peak accident hour is <strong>${peakHour}:00</strong>. ${peakHour >= 22 || peakHour <= 5 ? 'Night-time driving significantly increases risk in this city.' : peakHour >= 17 ? 'Evening rush hour is the most dangerous period.' : 'Morning commute shows elevated risk patterns.'}`
+    },
+    {
+      type: 'Risk Score', color: '#F59E0B',
+      bg: 'rgba(245,158,11,0.1)', border: 'rgba(245,158,11,0.2)',
+      time: 'Analysis',
+      text: `<strong>${ov?.risk_pct}%</strong> of all GPS readings are flagged as risky. Average vehicle speed across all clusters: <strong>${ov?.avg_speed} km/h</strong>. ${highCount} high-risk zones require immediate infrastructure review.`
+    },
+    {
+      type: 'Cluster', color: '#06B6D4',
+      bg: 'rgba(6,182,212,0.1)', border: 'rgba(6,182,212,0.2)',
+      time: 'DBSCAN',
+      text: `DBSCAN identified <strong>${S.hotspots.length} distinct hotspot clusters</strong> from ${(ov?.total_readings || 0).toLocaleString()} GPS readings. Silhouette score <strong>${S.evaluation?.dbscan?.silhouette ?? '—'}</strong> — significantly better than K-Means (${S.evaluation?.kmeans?.silhouette ?? '—'}).`
+    },
+    {
+      type: 'Recommendation', color: '#22C55E',
+      bg: 'rgba(34,197,94,0.1)', border: 'rgba(34,197,94,0.2)',
+      time: 'AI Suggestion',
+      text: `Deploy speed calming measures near <strong>Bus Stand Chowk</strong> and <strong>GT Road–Nakodar Junction</strong>. Install additional signage at the <strong>${critCount}</strong> critical zones. Consider night patrol increases between <strong>10 PM – 5 AM</strong>.`
+    },
+  ];
+
+  document.getElementById('insights-count').textContent = `${insights.length} insights`;
+
+  body.innerHTML = insights.map(ins => `
+    <div class="insight-item" style="--ins-color:${ins.color};--ins-bg:${ins.bg};--ins-border:${ins.border}">
+      <div class="insight-header">
+        <div class="insight-type">${ins.type}</div>
+        <div class="insight-time">${ins.time}</div>
+      </div>
+      <div class="insight-text">${ins.text}</div>
+    </div>
+  `).join('');
+}
+
+/* ─── Tables ─── */
+function buildDashTable() {
+  const tbody = document.getElementById('dash-table');
+  if (!tbody) return;
+  const top = S.hotspots.slice(0, 8);
+  const tc = document.getElementById('table-count');
+  if (tc) tc.textContent = `${S.hotspots.length} clusters`;
+  tbody.innerHTML = top.map(c => clusterRow(c, false)).join('');
+}
+
+function buildAllTables() {
+  // Analytics table
+  const anTb = document.getElementById('an-table');
+  if (anTb) anTb.innerHTML = S.hotspots.map(c => clusterRow(c, false)).join('');
+  const anC = document.getElementById('an-cluster-count');
+  if (anC) anC.textContent = S.hotspots.length + ' clusters';
+
+  // Zones table
+  const zTb = document.getElementById('zones-table');
+  if (zTb) zTb.innerHTML = S.hotspots.map(c => clusterRow(c, true)).join('');
+  const zC = document.getElementById('zones-count');
+  if (zC) zC.textContent = S.hotspots.length + ' zones';
+}
+
+function clusterRow(c, detailed) {
+  const scoreColor = c.risk_score >= 75 ? '#A855F7' : c.risk_score >= 50 ? '#EF4444' : c.risk_score >= 25 ? '#F59E0B' : '#22C55E';
+  return `
+    <tr onclick="jumpToCluster(${c.cluster_id})">
+      <td><span style="font-family:var(--font-mono);font-size:0.65rem;color:var(--t3)">C${c.cluster_id}</span></td>
+      ${detailed
+        ? `<td style="font-family:var(--font-mono);font-size:0.65rem;color:var(--t2)">${c.centroid_lat.toFixed(4)},${c.centroid_lon.toFixed(4)}</td>
+           <td style="font-weight:600">${c.size}</td>
+           <td>${c.avg_speed}<span style="color:var(--t4);font-size:0.62rem"> km/h</span></td>
+           <td style="font-family:var(--font-mono);font-size:0.65rem">${c.avg_jerk}</td>
+           <td>${c.risk_pct}%</td>`
+        : `<td style="font-family:var(--font-mono);font-size:0.65rem;color:var(--t2)">${c.centroid_lat.toFixed(4)},${c.centroid_lon.toFixed(4)}</td>
+           <td style="font-weight:600">${c.size}</td>
+           <td>${c.avg_speed}<span style="color:var(--t4);font-size:0.62rem"> km/h</span></td>
+           <td style="font-size:0.72rem;color:var(--t2);text-transform:capitalize">${c.dominant_event.replace('_', ' ')}</td>`
+      }
+      <td>
+        <div class="score-bar-wrap">
+          <div class="score-track"><div class="score-fill" style="width:${c.risk_score}%;background:${scoreColor}"></div></div>
+          <span class="score-num">${c.risk_score}</span>
+        </div>
+      </td>
+      <td><span class="risk-badge ${c.risk_label}">${c.risk_label}</span></td>
+    </tr>`;
+}
+
+function jumpToCluster(cid) {
+  const c = S.hotspots.find(h => h.cluster_id === cid);
+  if (!c) return;
+  showPage('map', null);
+  setTimeout(() => {
+    if (fullMap) fullMap.setView([c.centroid_lat, c.centroid_lon], 15);
+    else if (mainMap) mainMap.setView([c.centroid_lat, c.centroid_lon], 15);
+  }, 300);
+}
+
+/* ─── MAIN MAP (dashboard) ─── */
+function initMainMap() {
+  mainMap = L.map('main-map', { zoomControl: false, preferCanvas: true })
+    .setView([31.3260, 75.5762], 12);
+  addDarkTiles(mainMap);
+  L.control.zoom({ position: 'bottomright' }).addTo(mainMap);
+
+  clusterGroup = L.layerGroup().addTo(mainMap);
+  vehicleGroup = L.layerGroup().addTo(mainMap);
+
+  renderClusters(mainMap, clusterGroup, S.hotspots);
+  addHeatmap(mainMap, heatLayer, S.heatmap, (l) => { heatLayer = l; });
+
+  const mc = document.getElementById('map-cluster-count');
+  if (mc) mc.textContent = `${S.hotspots.length} clusters`;
+  const mhc = document.getElementById('mhud-clusters');
+  if (mhc) mhc.textContent = S.hotspots.length;
+}
+
+/* ─── FULL MAP (map page) ─── */
+function initFullMap() {
+  fullMap = L.map('full-map', { zoomControl: true, preferCanvas: true })
+    .setView([31.3260, 75.5762], 12);
+  addDarkTiles(fullMap);
+
+  fullClusterGroup = L.layerGroup().addTo(fullMap);
+  fullVehicleGroup = L.layerGroup().addTo(fullMap);
+
+  renderClusters(fullMap, fullClusterGroup, S.hotspots);
+  if (S.heatmap.length) addHeatmap(fullMap, fullHeatLayer, S.heatmap, (l) => { fullHeatLayer = l; });
+  if (S.vehicles.length) renderVehicles(fullMap, fullVehicleGroup, S.vehicles);
+
+  // Add layer controls for full map
+  const layerControl = L.control({ position: 'topleft' });
+  layerControl.onAdd = () => {
+    const div = L.DomUtil.create('div');
+    div.innerHTML = `
+      <div style="background:rgba(7,7,11,0.92);backdrop-filter:blur(16px);border:1px solid rgba(255,255,255,0.12);border-radius:11px;padding:8px;display:flex;flex-direction:column;gap:4px;min-width:130px;">
+        <div onclick="toggleFullLayer('heatmap')" id="full-ctrl-heatmap" style="display:flex;align-items:center;gap:7px;padding:7px 10px;border-radius:7px;font-size:0.7rem;font-weight:500;cursor:pointer;color:#A855F7;background:rgba(168,85,247,0.15);border:1px solid rgba(168,85,247,0.3);">
+          <div style="width:7px;height:7px;border-radius:50%;background:currentColor;flex-shrink:0"></div> Heatmap
+        </div>
+        <div onclick="toggleFullLayer('clusters')" id="full-ctrl-clusters" style="display:flex;align-items:center;gap:7px;padding:7px 10px;border-radius:7px;font-size:0.7rem;font-weight:500;cursor:pointer;color:#A855F7;background:rgba(168,85,247,0.15);border:1px solid rgba(168,85,247,0.3);">
+          <div style="width:7px;height:7px;border-radius:50%;background:currentColor;flex-shrink:0"></div> Clusters
+        </div>
+        <div onclick="toggleFullLayer('vehicles')" id="full-ctrl-vehicles" style="display:flex;align-items:center;gap:7px;padding:7px 10px;border-radius:7px;font-size:0.7rem;font-weight:500;cursor:pointer;color:#A855F7;background:rgba(168,85,247,0.15);border:1px solid rgba(168,85,247,0.3);">
+          <div style="width:7px;height:7px;border-radius:50%;background:currentColor;flex-shrink:0"></div> Vehicles
+        </div>
+      </div>`;
+    L.DomEvent.disableClickPropagation(div);
+    return div;
+  };
+  layerControl.addTo(fullMap);
+}
+
+let fullLayerState = { heatmap: true, clusters: true, vehicles: true };
+function toggleFullLayer(name) {
+  fullLayerState[name] = !fullLayerState[name];
+  const btn = document.getElementById('full-ctrl-' + name);
+  const on = fullLayerState[name];
+  if (btn) {
+    btn.style.color = on ? '#A855F7' : '#71717A';
+    btn.style.background = on ? 'rgba(168,85,247,0.15)' : 'transparent';
+    btn.style.border = on ? '1px solid rgba(168,85,247,0.3)' : '1px solid transparent';
+  }
+  if (name === 'heatmap') {
+    if (!on && fullHeatLayer) fullMap.removeLayer(fullHeatLayer);
+    else if (on) addHeatmap(fullMap, fullHeatLayer, S.heatmap, (l) => { fullHeatLayer = l; });
+  }
+  if (name === 'clusters') {
+    if (!on && fullClusterGroup) fullMap.removeLayer(fullClusterGroup);
+    else if (on && fullClusterGroup) fullClusterGroup.addTo(fullMap);
+  }
+  if (name === 'vehicles') {
+    if (!on && fullVehicleGroup) fullMap.removeLayer(fullVehicleGroup);
+    else if (on && fullVehicleGroup) fullVehicleGroup.addTo(fullMap);
+  }
+}
+
+/* ─── Map utilities ─── */
+function addDarkTiles(map) {
+  L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png', {
+    attribution: '© CartoDB', maxZoom: 19,
+  }).addTo(map);
+}
+
+/* ─── FIXED: Render clusters (hotspot zones) ─── */
+function renderClusters(map, group, clusters) {
+  if (!group || !clusters || !clusters.length) return;
+  group.clearLayers();
+
+  const riskColors = {
+    critical: '#A855F7', high: '#EF4444', medium: '#F59E0B', low: '#22C55E'
+  };
+
+  clusters.forEach(c => {
+    const color = riskColors[c.risk_label] || c.color || '#A855F7';
+    const radius = Math.max(80, Math.min(400, c.radius_m || c.size * 4 || 120));
+
+    // Zone circle
+    const circle = L.circle([c.centroid_lat, c.centroid_lon], {
+      radius: radius,
+      color: color,
+      fillColor: color,
+      fillOpacity: 0.12,
+      weight: 2,
+      opacity: 0.7,
+      dashArray: c.risk_label === 'critical' ? '6,4' : null,
+    });
+
+    // Center marker
+    const centerMarker = L.circleMarker([c.centroid_lat, c.centroid_lon], {
+      radius: 5 + Math.floor(c.risk_score / 20),
+      color: '#fff',
+      fillColor: color,
+      fillOpacity: 0.95,
+      weight: 2,
+    });
+
+    // Popup
+    const popupContent = buildPopupHTML(c, color);
+    const popup = L.popup({
+      maxWidth: 260, minWidth: 220,
+      closeButton: true,
+      className: 'custom-popup',
+    }).setContent(popupContent);
+
+    circle.bindPopup(popup);
+    centerMarker.bindPopup(popup);
+
+    // Rich hover card (dark-mode, aligned)
+    const riskBgColors = {
+      critical: 'rgba(168,85,247,0.15)', high: 'rgba(239,68,68,0.15)',
+      medium: 'rgba(245,158,11,0.15)', low: 'rgba(34,197,94,0.15)'
+    };
+    const riskBorders = {
+      critical: 'rgba(168,85,247,0.35)', high: 'rgba(239,68,68,0.35)',
+      medium: 'rgba(245,158,11,0.35)', low: 'rgba(34,197,94,0.35)'
+    };
+    const eventIcons = {
+      hard_brake: '🛑', sharp_turn: '↩️', speeding: '⚡', near_miss: '⚠️', normal: '✅'
+    };
+    const evIcon = eventIcons[(c.dominant_event||'').toLowerCase()] || '📍';
+    const scoreW = Math.round(c.risk_score);
+
+    // Risk bar segment widths (4 segments: 0-25, 25-50, 50-75, 75-100)
+    const seg = Math.min(scoreW, 100);
+    const tooltipContent = `
+      <div class="hc-wrap" style="min-width:240px">
+        <div class="hc-header">
+          <div class="hc-dot" style="background:${color};color:${color}"></div>
+          <span class="hc-cluster-id">Cluster C${c.cluster_id}</span>
+          <div class="hc-risk-badge" style="background:${riskBgColors[c.risk_label]};color:${color};border:1px solid ${riskBorders[c.risk_label]}">${c.risk_label.toUpperCase()}</div>
+        </div>
+        <div class="hc-zone-name">${evIcon} ${(c.dominant_event||'Unknown Event').replace(/_/g,' ')} Zone</div>
+        <div class="hc-stats">
+          <div class="hc-stat">
+            <div class="hc-stat-icon">🎯</div>
+            <div class="hc-stat-val" style="color:${color}">${c.risk_score}</div>
+            <div class="hc-stat-lbl">Risk Score / 100</div>
+          </div>
+          <div class="hc-stat">
+            <div class="hc-stat-icon">📍</div>
+            <div class="hc-stat-val">${c.size}</div>
+            <div class="hc-stat-lbl">GPS Points</div>
+          </div>
+          <div class="hc-stat">
+            <div class="hc-stat-icon">⚡</div>
+            <div class="hc-stat-val">${c.avg_speed}</div>
+            <div class="hc-stat-lbl">Avg Speed km/h</div>
+          </div>
+          <div class="hc-stat">
+            <div class="hc-stat-icon">🚨</div>
+            <div class="hc-stat-val">${c.risk_pct}%</div>
+            <div class="hc-stat-lbl">Risk Events</div>
+          </div>
+        </div>
+        <div class="hc-risk-bar-wrap">
+          <div class="hc-risk-bar-labels">
+            <span style="color:#22C55E">● Low</span>
+            <span style="color:#F59E0B">● Medium</span>
+            <span style="color:#EF4444">● High</span>
+            <span style="color:#A855F7">● Critical</span>
+          </div>
+          <div class="hc-risk-track">
+            <div class="hc-risk-fill" style="width:${seg}%;background:linear-gradient(90deg,#22C55E 0%,#F59E0B 33%,#EF4444 66%,#A855F7 100%);opacity:0.85"></div>
+          </div>
+        </div>
+        <div class="hc-footer">
+          <div class="hc-coords">${c.centroid_lat.toFixed(5)}, ${c.centroid_lon.toFixed(5)}<br>~${c.radius_m || Math.min(400,c.size*4)}m radius</div>
+          <div class="hc-hint">Click to open details →</div>
+        </div>
+      </div>`;
+
+    circle.bindTooltip(tooltipContent, {
+      sticky: true, direction: 'top', opacity: 1,
+      className: 'cluster-rich-tooltip',
+    });
+    centerMarker.bindTooltip(tooltipContent, {
+      sticky: true, direction: 'top', opacity: 1,
+      className: 'cluster-rich-tooltip',
+    });
+
+    circle.addTo(group);
+    centerMarker.addTo(group);
+  });
+}
+
+function buildPopupHTML(c, color) {
+  return `
+    <div class="popup-card">
+      <div class="popup-cluster-id">
+        <div style="width:6px;height:6px;border-radius:50%;background:${color}"></div>
+        CLUSTER ${c.cluster_id} · ${c.risk_label.toUpperCase()}
+      </div>
+      <div class="popup-name">${(c.dominant_event || '').replace('_', ' ')} Zone</div>
+      <div class="popup-grid">
+        <div class="popup-stat">
+          <div class="popup-stat-val">${c.risk_score}</div>
+          <div class="popup-stat-lbl">Risk Score / 100</div>
+        </div>
+        <div class="popup-stat">
+          <div class="popup-stat-val">${c.size}</div>
+          <div class="popup-stat-lbl">GPS Points</div>
+        </div>
+        <div class="popup-stat">
+          <div class="popup-stat-val">${c.avg_speed}</div>
+          <div class="popup-stat-lbl">Avg Speed km/h</div>
+        </div>
+        <div class="popup-stat">
+          <div class="popup-stat-val">${c.risk_pct}%</div>
+          <div class="popup-stat-lbl">Risk Events</div>
+        </div>
+      </div>
+      <div style="font-size:0.65rem;color:#71717A;margin-bottom:6px">Risk Level</div>
+      <div class="popup-risk-bar"><div class="popup-risk-fill" style="width:${c.risk_score}%;background:${color}"></div></div>
+      <div class="popup-risk-labels"><span>Low</span><span>Medium</span><span>High</span><span>Critical</span></div>
+      <div style="font-size:0.65rem;color:#71717A;margin-bottom:6px">${c.centroid_lat.toFixed(5)}, ${c.centroid_lon.toFixed(5)} · Radius ~${c.radius_m || Math.min(400,c.size*4)}m</div>
+      <button class="popup-btn" onclick="jumpToCluster(${c.cluster_id})">📈 View Analytics</button>
+    </div>`;
+}
+
+/* ─── HEATMAP — FIXED VERSION ─── */
+function addHeatmap(map, existingLayer, points, setLayer) {
+  if (!map || !points || !points.length) return;
+  
+  // Clean up existing layer
+  if (existingLayer) { try { map.removeLayer(existingLayer); } catch(e) {} }
+  
+  // Respect layer visibility states for BOTH maps
+  if (!layerState.heatmap && map === mainMap) return;
+  if (!fullLayerState.heatmap && map === fullMap) return;
+
+  // Safely parse points: prevents NaN canvas crashes and supports both arrays and objects
+  const heatPoints = points.map(p => {
+    const lat = p[0] !== undefined ? p[0] : (p.lat || p.latitude);
+    const lon = p[1] !== undefined ? p[1] : (p.lon || p.lng || p.longitude);
+    const weight = p[2] !== undefined ? p[2] : (p.weight || p.intensity);
+    
+    // If weight is missing, default to 0.5 to prevent Math.max(0.1, undefined) -> NaN
+    const safeWeight = weight !== undefined ? Math.max(0.1, parseFloat(weight)) : 0.5;
+    
+    return [lat, lon, safeWeight];
+  }).filter(p => p[0] !== undefined && p[1] !== undefined && !isNaN(p[0]) && !isNaN(p[1]));
+
+  // Generate the layer
+  const layer = L.heatLayer(heatPoints, {
+    radius: hmConfig.radius,
+    blur: hmConfig.blur,
+    maxZoom: 16,
+    max: hmConfig.maxIntensity,
+    minOpacity: 0.3,
+    gradient: hmConfig.gradient,
+  }).addTo(map);
+
+  setLayer(layer);
+}
+
+/* ─── Heatmap controls ─── */
+function updateHeatmap(input, prop) {
+  const val = parseFloat(input.value);
+  if (prop === 'radius') {
+    hmConfig.radius = val;
+    document.getElementById('hm-radius-val').textContent = val;
+  } else if (prop === 'blur') {
+    hmConfig.blur = val;
+    document.getElementById('hm-blur-val').textContent = val;
+  } else if (prop === 'intensity') {
+    hmConfig.maxIntensity = val / 100;
+    document.getElementById('hm-intensity-val').textContent = (val / 100).toFixed(1);
+  }
+  // Re-render both maps
+  if (mainMap && S.heatmap.length) addHeatmap(mainMap, heatLayer, S.heatmap, (l) => { heatLayer = l; });
+  if (fullMap && S.heatmap.length) addHeatmap(fullMap, fullHeatLayer, S.heatmap, (l) => { fullHeatLayer = l; });
+}
+
+function setHeatmapTheme(name, btn) {
+  hmConfig.gradient = hmThemes[name] || hmThemes.default;
+  document.querySelectorAll('.hm-theme-btn').forEach(b => b.classList.remove('active'));
+  if (btn) btn.classList.add('active');
+  if (mainMap && S.heatmap.length) addHeatmap(mainMap, heatLayer, S.heatmap, (l) => { heatLayer = l; });
+  if (fullMap && S.heatmap.length) addHeatmap(fullMap, fullHeatLayer, S.heatmap, (l) => { fullHeatLayer = l; });
+}
+
+/* ─── Layer toggles (dashboard map) ─── */
+function toggleMapLayer(name) {
+  layerState[name] = !layerState[name];
+  const btn = document.getElementById('ctrl-' + name);
+  if (btn) btn.classList.toggle('active', layerState[name]);
+
+  if (name === 'heatmap') {
+    if (!layerState.heatmap && heatLayer) mainMap.removeLayer(heatLayer);
+    else if (layerState.heatmap) addHeatmap(mainMap, heatLayer, S.heatmap, (l) => { heatLayer = l; });
+  }
+  if (name === 'clusters') {
+    if (!layerState.clusters && clusterGroup) mainMap.removeLayer(clusterGroup);
+    else if (layerState.clusters && clusterGroup) clusterGroup.addTo(mainMap);
+  }
+  if (name === 'vehicles') {
+    if (!layerState.vehicles && vehicleGroup) mainMap.removeLayer(vehicleGroup);
+    else if (layerState.vehicles && vehicleGroup) vehicleGroup.addTo(mainMap);
+  }
+}
+
+function fitMapBounds() {
+  const map = fullMap || mainMap;
+  if (!map || !S.hotspots.length) return;
+  const lats = S.hotspots.map(c => c.centroid_lat);
+  const lons = S.hotspots.map(c => c.centroid_lon);
+  map.fitBounds([
+    [Math.min(...lats) - 0.01, Math.min(...lons) - 0.01],
+    [Math.max(...lats) + 0.01, Math.max(...lons) + 0.01],
+  ]);
+}
+
+function resetMapView() {
+  const map = fullMap || mainMap;
+  if (map) map.setView([31.3260, 75.5762], 12);
+}
+
+function refreshMapLayers() {
+  if (mainMap && clusterGroup) renderClusters(mainMap, clusterGroup, S.hotspots);
+  if (fullMap && fullClusterGroup) renderClusters(fullMap, fullClusterGroup, S.hotspots);
+
+  const mc = document.getElementById('map-cluster-count');
+  if (mc) mc.textContent = `${S.hotspots.length} clusters`;
+  const mhc = document.getElementById('mhud-clusters');
+  if (mhc) mhc.textContent = S.hotspots.length;
+}
+
+/* ─── Vehicles ─── */
+function renderVehicles(map, group, vehicles) {
+  if (!group) return;
+  group.clearLayers();
+  const vcColors = { normal: '#22C55E', medium: '#F59E0B', high: '#EF4444', critical: '#A855F7' };
+  vehicles.forEach(v => {
+    const col = vcColors[v.status] || '#22C55E';
+    const svg = encodeURIComponent(`<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" width="18" height="18"><circle cx="12" cy="12" r="9" fill="${col}" fill-opacity="0.2" stroke="${col}" stroke-width="1.5"/><circle cx="12" cy="12" r="4" fill="${col}"/></svg>`);
+    const icon = L.divIcon({
+      html: `<img src="data:image/svg+xml,${svg}" style="transform:rotate(${v.bearing || 0}deg)"/>`,
+      className: '', iconSize: [18, 18], iconAnchor: [9, 9]
+    });
+    L.marker([v.lat, v.lon], { icon })
+      .bindTooltip(`${v.id} · ${v.speed} km/h · ${v.status}`, { direction: 'top' })
+      .addTo(group);
+  });
+}
+
+function updateVehicles() {
+  if (layerState.vehicles && vehicleGroup && mainMap) {
+    renderVehicles(mainMap, vehicleGroup, S.vehicles);
+  }
+  if (fullLayerState.vehicles && fullVehicleGroup && fullMap) {
+    renderVehicles(fullMap, fullVehicleGroup, S.vehicles);
+  }
+  const alerted = S.vehicles.filter(v => v.alert).length;
+  document.getElementById('mhud-vehicles').textContent = S.vehicles.length;
+  document.getElementById('mhud-alerts').textContent = alerted;
+}
+
+/* ─── Alerts ─── */
+function updateAlertBadge(n) {
+  ['sb-alert-count', 'dash-alert-badge', 'live-alert-count'].forEach(id => {
+    const el = document.getElementById(id);
+    if (el) el.textContent = id === 'sb-alert-count' ? n : n + ' active';
+  });
+  const simA = document.getElementById('sim-alerts');
+  if (simA) simA.textContent = n;
+}
+
+function renderAlerts(vehicles, containerId) {
+  const alerted = vehicles.filter(v => v.alert);
+  updateAlertBadge(alerted.length);
+  const container = document.getElementById(containerId);
+  if (!container) return;
+
+  alerted.forEach(v => {
+    if (!S.alertHistory.find(a => a.id === v.id && a.status === v.status)) {
+      S.alertHistory.unshift({ ...v, time: new Date().toLocaleTimeString() });
+    }
+  });
+  S.alertHistory = S.alertHistory.slice(0, 30);
+
+  if (!S.alertHistory.length) {
+    container.innerHTML = '<div class="empty-state"><div class="ei">🔔</div><p>No active alerts</p></div>';
+    return;
+  }
+
+  const rConf = {
+    critical: { color: '#A855F7', bg: 'rgba(168,85,247,0.1)', border: 'rgba(168,85,247,0.2)', icon: '🔴' },
+    high:     { color: '#EF4444', bg: 'rgba(239,68,68,0.1)',  border: 'rgba(239,68,68,0.2)',  icon: '🟠' },
+    medium:   { color: '#F59E0B', bg: 'rgba(245,158,11,0.1)', border: 'rgba(245,158,11,0.2)', icon: '🟡' },
+    normal:   { color: '#22C55E', bg: 'rgba(34,197,94,0.08)', border: 'rgba(34,197,94,0.15)', icon: '🟢' },
+  };
+
+  container.innerHTML = S.alertHistory.slice(0, 15).map(v => {
+    const r = rConf[v.status] || rConf.medium;
+    return `
+      <div class="alert-item" style="--alert-color:${r.color};--alert-bg:${r.bg};--alert-border:${r.border}">
+        <div class="alert-icon">${r.icon}</div>
+        <div class="alert-body">
+          <div class="alert-title">${v.alert || 'Zone entry detected'}</div>
+          <div class="alert-meta">${v.time || ''} · ${v.speed} km/h · ${v.bearing}°</div>
+        </div>
+        <div class="alert-sev" style="background:${r.bg};color:${r.color};border:1px solid ${r.border};border-radius:20px;font-size:0.58rem;font-weight:700;padding:2px 7px;text-transform:uppercase;letter-spacing:0.04em">${v.status}</div>
+      </div>`;
+  }).join('');
+}
+
+/* ─── Live page ─── */
+function updateLivePage() {
+  renderAlerts(S.vehicles, 'dash-alerts');
+  renderAlerts(S.vehicles, 'live-alerts');
+
+  const vg = document.getElementById('live-vehicles');
+  if (vg) vg.innerHTML = S.vehicles.map(v => `
+    <div class="vehicle-tile">
+      <div class="vt-id">${v.id}</div>
+      <div class="vt-speed">${v.speed} km/h · ${v.bearing}°</div>
+      <span class="vt-status ${v.status}">${v.status}</span>
+    </div>`).join('');
+
+  const online = S.vehicles.length;
+  const inAlert = S.vehicles.filter(v => v.status !== 'normal').length;
+  const avg = online ? (S.vehicles.reduce((a, v) => a + v.speed, 0) / online).toFixed(1) : 0;
+  ['sim-online', 'sim-speed', 'sim-normal'].forEach((id, i) => {
+    const el = document.getElementById(id);
+    if (el) el.textContent = [online, avg, online - inAlert][i];
+  });
+  const lvb = document.getElementById('live-veh-count');
+  if (lvb) lvb.textContent = online + ' online';
+}
+
+/* ─── Chart defaults ─── */
+Chart.defaults.color = 'rgba(161,161,170,0.7)';
+Chart.defaults.borderColor = 'rgba(255,255,255,0.05)';
+Chart.defaults.font.family = "'Inter', system-ui, sans-serif";
+Chart.defaults.animation.duration = 800;
+Chart.defaults.animation.easing = 'easeInOutQuart';
+
+const CD = {
+  responsive: true, maintainAspectRatio: false,
+  plugins: { legend: { display: false }, tooltip: {
+    backgroundColor: 'rgba(7,7,11,0.95)',
+    titleColor: '#FAFAFA', bodyColor: '#A1A1AA',
+    borderColor: 'rgba(255,255,255,0.12)', borderWidth: 1,
+    padding: 10, cornerRadius: 8,
+    titleFont: { weight: 600, size: 12 },
+  }},
+  scales: {
+    x: { grid: { color: 'rgba(255,255,255,0.04)' }, ticks: { color: 'rgba(161,161,170,0.65)', font: { size: 10 } } },
+    y: { grid: { color: 'rgba(255,255,255,0.04)' }, ticks: { color: 'rgba(161,161,170,0.65)', font: { size: 10 } } },
+  }
+};
+
+/* Gradient helper */
+function makeGrad(ctx, h, top, bottom) {
+  const g = ctx.createLinearGradient(0, 0, 0, h);
+  g.addColorStop(0, top); g.addColorStop(1, bottom);
+  return g;
+}
+
+/* ─── Mini hourly chart (dashboard) ─── */
+let dashHourlyChart = null;
+function buildHourlyMiniChart() {
+  const an = S.analytics;
+  if (!an || !document.getElementById('chart-hourly')) return;
+  const h = an.hourly_accidents || [];
+
+  if (dashHourlyChart) dashHourlyChart.destroy();
+  const ctx = document.getElementById('chart-hourly');
+  dashHourlyChart = new Chart(ctx, {
+    type: 'bar',
+    data: {
+      labels: h.map(x => x.hour + ':00'),
+      datasets: [{
+        data: h.map(x => x.accidents),
+        backgroundColor: h.map(x => x.hour >= 22 || x.hour <= 5
+          ? 'rgba(168,85,247,0.75)' : x.hour >= 17 || x.hour <= 9
+          ? 'rgba(239,68,68,0.70)' : 'rgba(59,130,246,0.60)'),
+        borderRadius: 4, borderWidth: 0,
+      }]
+    },
+    options: { ...CD, animation: { duration: 900 } }
+  });
+
+  // Mini event doughnut
+  if (dashHourlyChart && document.getElementById('chart-events')) {
+    const evK = Object.keys(an.event_counts || {});
+    const evV = Object.values(an.event_counts || {});
+    if (chartsCache.evMini) chartsCache.evMini.destroy();
+    const evCtx = document.getElementById('chart-events');
+    chartsCache.evMini = new Chart(evCtx, {
+      type: 'doughnut',
+      data: {
+        labels: evK.map(k => k.replace('_', ' ')),
+        datasets: [{
+          data: evV,
+          backgroundColor: [
+            'rgba(34,197,94,0.85)', 'rgba(239,68,68,0.85)',
+            'rgba(245,158,11,0.85)', 'rgba(59,130,246,0.85)', 'rgba(168,85,247,0.85)',
+          ],
+          borderWidth: 0, hoverOffset: 5,
+        }]
+      },
+      options: {
+        responsive: true, maintainAspectRatio: false, cutout: '68%',
+        plugins: {
+          legend: {
+            display: true, position: 'right',
+            labels: { color: 'rgba(161,161,170,0.75)', font: { size: 10 }, padding: 10, boxWidth: 8 }
+          },
+          tooltip: CD.plugins.tooltip,
+        },
+        animation: { duration: 900 },
+      }
+    });
+  }
+}
+
+/* ─── Analytics charts ─── */
+let AC = {};
+function buildAnalyticsCharts() {
+  const an = S.analytics;
+  if (!an) return;
+  chartsBuilt.analytics = true;
+
+  // Hourly
+  if (AC.h) AC.h.destroy();
+  AC.h = new Chart(document.getElementById('an-hourly'), {
+    type: 'bar',
+    data: {
+      labels: (an.hourly_accidents || []).map(x => x.hour + ':00'),
+      datasets: [{
+        data: (an.hourly_accidents || []).map(x => x.accidents),
+        backgroundColor: (an.hourly_accidents || []).map(x =>
+          x.hour >= 22 || x.hour <= 5 ? 'rgba(168,85,247,0.75)' :
+          x.hour >= 17 || x.hour <= 9 ? 'rgba(239,68,68,0.70)' : 'rgba(59,130,246,0.60)'),
+        borderRadius: 5, borderWidth: 0,
+      }]
+    },
+    options: { ...CD }
+  });
+
+  // Events
+  if (AC.d) AC.d.destroy();
+  const evK = Object.keys(an.event_counts || {});
+  const evV = Object.values(an.event_counts || {});
+  AC.d = new Chart(document.getElementById('an-events'), {
+    type: 'doughnut',
+    data: {
+      labels: evK.map(k => k.replace('_', ' ')),
+      datasets: [{ data: evV, backgroundColor: ['rgba(34,197,94,0.85)','rgba(239,68,68,0.85)','rgba(245,158,11,0.85)','rgba(59,130,246,0.85)','rgba(168,85,247,0.85)'], borderWidth: 0, hoverOffset: 6 }]
+    },
+    options: {
+      responsive: true, maintainAspectRatio: false, cutout: '65%',
+      plugins: {
+        legend: { display: true, position: 'right', labels: { color: 'rgba(161,161,170,0.75)', font: { size: 10 }, padding: 9, boxWidth: 8 } },
+        tooltip: CD.plugins.tooltip,
+      }
+    }
+  });
+
+  // Speed
+  if (AC.s) AC.s.destroy();
+  const sp = an.speed_distribution || { labels: [], values: [] };
+  const sCtx = document.getElementById('an-speed').getContext('2d');
+  const sGrad = makeGrad(sCtx, 200, 'rgba(34,197,94,0.75)', 'rgba(34,197,94,0.15)');
+  AC.s = new Chart(document.getElementById('an-speed'), {
+    type: 'bar',
+    data: { labels: sp.labels, datasets: [{ data: sp.values, backgroundColor: sGrad, borderRadius: 5, borderWidth: 0 }] },
+    options: { ...CD }
+  });
+
+  // Trend
+  if (AC.t) AC.t.destroy();
+  const dt = an.daily_trend || [];
+  const tCtx = document.getElementById('an-trend').getContext('2d');
+  const tGrad = makeGrad(tCtx, 200, 'rgba(124,58,237,0.35)', 'rgba(124,58,237,0.0)');
+  AC.t = new Chart(document.getElementById('an-trend'), {
+    type: 'line',
+    data: {
+      labels: dt.map(d => d.date),
+      datasets: [{
+        data: dt.map(d => d.risk_flag),
+        borderColor: '#7C3AED', backgroundColor: tGrad,
+        fill: true, tension: 0.4,
+        pointRadius: 4, pointBackgroundColor: '#A855F7',
+        pointBorderColor: '#fff', pointBorderWidth: 1.5,
+        borderWidth: 2,
+      }]
+    },
+    options: { ...CD }
+  });
+}
+
+/* ─── Eval charts ─── */
+let EC = {};
+function buildEvalCharts() {
+  const ev = S.evaluation;
+  if (!ev) return;
+  chartsBuilt.evaluation = true;
+
+  ['ev-sil-db', 'ev-dbi-db', 'ev-sil-km', 'ev-dbi-km'].forEach((id, i) => {
+    const el = document.getElementById(id);
+    if (el) el.textContent = [ev.dbscan?.silhouette, ev.dbscan?.davies_bouldin, ev.kmeans?.silhouette, ev.kmeans?.davies_bouldin][i] ?? '—';
+  });
+
+  // Compare
+  if (EC.c) EC.c.destroy();
+  EC.c = new Chart(document.getElementById('ev-compare'), {
+    type: 'bar',
+    data: {
+      labels: ['Silhouette ↑', 'Davies-Bouldin ↓', 'Clusters'],
+      datasets: [
+        { label: 'DBSCAN', data: [ev.dbscan?.silhouette || 0, ev.dbscan?.davies_bouldin || 0, ev.dbscan?.n_clusters || 0], backgroundColor: 'rgba(6,182,212,0.7)', borderRadius: 5, borderWidth: 0 },
+        { label: 'K-Means', data: [ev.kmeans?.silhouette || 0, ev.kmeans?.davies_bouldin || 0, ev.kmeans?.k || 0], backgroundColor: 'rgba(245,158,11,0.65)', borderRadius: 5, borderWidth: 0 },
+      ]
+    },
+    options: { ...CD, plugins: { ...CD.plugins, legend: { display: true, labels: { color: 'rgba(161,161,170,0.75)', font: { size: 10 }, boxWidth: 8 } } } }
+  });
+
+  // Elbow
+  if (EC.e) EC.e.destroy();
+  const eCtx = document.getElementById('ev-elbow').getContext('2d');
+  const eGrad = makeGrad(eCtx, 200, 'rgba(245,158,11,0.35)', 'rgba(245,158,11,0)');
+  EC.e = new Chart(document.getElementById('ev-elbow'), {
+    type: 'line',
+    data: {
+      labels: ev.kmeans?.elbow_ks || [],
+      datasets: [{
+        data: ev.kmeans?.elbow_inertias || [],
+        borderColor: '#F59E0B', backgroundColor: eGrad,
+        fill: true, tension: 0.3, pointRadius: 4, pointBackgroundColor: '#F59E0B', borderWidth: 2,
+      }]
+    },
+    options: { ...CD }
+  });
+
+  // Risk labels
+  if (EC.r) EC.r.destroy();
+  const lc = ev.dbscan?.label_counts || {};
+  EC.r = new Chart(document.getElementById('ev-labels'), {
+    type: 'bar',
+    data: {
+      labels: ['Low', 'Medium', 'High', 'Critical'],
+      datasets: [{
+        data: [lc.low || 0, lc.medium || 0, lc.high || 0, lc.critical || 0],
+        backgroundColor: ['rgba(34,197,94,0.72)', 'rgba(245,158,11,0.72)', 'rgba(239,68,68,0.72)', 'rgba(168,85,247,0.72)'],
+        borderRadius: 5, borderWidth: 0,
+      }]
+    },
+    options: { ...CD }
+  });
+
+  // Notes
+  const notes = document.getElementById('ev-notes');
+  if (notes) notes.innerHTML = `
+    <div style="display:flex;flex-direction:column;gap:12px">
+      <div>
+        <div style="color:var(--cyan);font-size:0.8rem;font-weight:600;margin-bottom:4px">DBSCAN — Primary Model</div>
+        <div style="font-size:0.72rem;color:var(--t2);line-height:1.7">Density-based spatial clustering using <strong style="color:var(--t1)">Haversine distance</strong> on the Earth's surface. No K required. Noise labeled <code>−1</code> and excluded from clusters.</div>
+        <div style="margin-top:4px;color:var(--t4);font-family:var(--font-mono);font-size:0.62rem">ε=95m · min_samples=5 · Ball-tree · Haversine metric</div>
+      </div>
+      <hr class="div">
+      <div>
+        <div style="color:var(--amber);font-size:0.8rem;font-weight:600;margin-bottom:4px">K-Means — Comparison</div>
+        <div style="font-size:0.72rem;color:var(--t2);line-height:1.7">Centroid clustering on scaled features: lat, lon, speed, jerk, danger_score, is_night. K selected via elbow analysis.</div>
+        <div style="margin-top:4px;color:var(--t4);font-family:var(--font-mono);font-size:0.62rem">K=${ev.kmeans?.k || '—'} · n_init=10 · max_iter=500</div>
+      </div>
+      <div style="padding:10px 12px;background:rgba(34,197,94,0.06);border:1px solid rgba(34,197,94,0.15);border-radius:var(--radius)">
+        <span style="color:var(--green);font-weight:700">✓ Verdict: DBSCAN wins</span>
+        <span style="font-size:0.72rem;margin-left:7px;color:var(--t2)">Higher silhouette · Lower DB index · Better for geospatial variable-density data.</span>
+      </div>
+    </div>`;
+}
+
+/* ─── Refresh ─── */
+async function refreshAll() {
+  const btn = document.getElementById('refresh-btn');
+  if (btn) btn.innerHTML = '<div class="spinner"></div>';
+  await loadAll();
+  if (btn) btn.innerHTML = `<svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round"><polyline points="1 4 1 10 7 10"/><path d="M3.51 15a9 9 0 1 0 .49-4.95"/></svg> Refresh`;
+}
+
+/* ─── Boot ─── */
+loadAll();
+setInterval(loadVehicles, 3000);
+setInterval(loadAll, 60000);
+</script>
+</body>
+</html>
